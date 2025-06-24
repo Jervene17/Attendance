@@ -212,10 +212,17 @@ async def main():
 
     print("🤖 Bot is running...")
 
-    # Optional: trigger test prompt
-    await send_attendance_prompt(503493798, application.bot, application.bot_data, custom_text="🧪 Test broadcast")
+    # Create a fake context with bot_data
+    class MockContext:
+        def __init__(self):
+            self.bot_data = {}
+            self.user_data = {}
+
+    mock_context = MockContext()
+    mock_context.bot_data["user_chats"] = {503493798: 503493798}
+
+    # ✅ Trigger a test prompt
+    await send_attendance_prompt(503493798, application.bot, mock_context, custom_text="🧪 Test broadcast")
 
     await application.run_polling()
 
-if __name__ == "__main__":
-    asyncio.run(main())
