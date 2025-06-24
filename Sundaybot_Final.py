@@ -1,13 +1,13 @@
 import requests
 import datetime
 import asyncio
+from pytz import timezone
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from pytz import timezone
 
 # === 🔐 BOT TOKEN
 BOT_TOKEN = '7651692145:AAGmvAfhjqJ_bhKOyTM-KN3EDGlGaqLOY6E'
@@ -52,7 +52,7 @@ MEMBER_LISTS = {
 }
 
 user_sessions = {}
-scheduler = AsyncIOScheduler(timezone=timezone("Asia/Manila"))
+scheduler = AsyncIOScheduler(timezone="Asia/Manila")
 
 # === ✅ Start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -111,9 +111,9 @@ def check_for_response_timeout(user_id, group, bot: Bot, context):
                 chat_id = context.bot_data["user_chats"].get(next_user)
                 if chat_id:
                     print(f"⚠️ Forwarding attendance to fallback: {next_user}")
-                    application.create_task(send_attendance_prompt(
-                        next_user, bot, context,
-                        custom_text=f"{group} checker didn't respond. Please handle attendance.")
+                    asyncio.create_task(
+                        send_attendance_prompt(next_user, bot, context,
+                            custom_text=f"{group} checker didn't respond. Please handle attendance.")
                     )
 
 # === ✅ Handle button
@@ -181,28 +181,25 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if session["members"]:
         keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
         keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
+
         await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
 
 # === 🕖 Weekly scheduler
-def broadcast_with_label(app, label, context):
-    print(f"📢 Broadcast: {label}")
-    for user_id, group in USER_GROUPS.items():
+def broadcast_with_label(bot, label, context):
+    for user_id in USER_GROUPS:
         chat_id = context.bot_data["user_chats"].get(user_id)
         if chat_id:
-            app.create_task(send_attendance_prompt(user_id, app.bot, context, custom_text=label))
+            asyncio.create_task(send_attendance_prompt(user_id, bot, context, custom_text=label))
 
-def schedule_weekly_broadcast(app):
-    scheduler.add_job(lambda: broadcast_with_label(app, "Who did you miss this predawn?", app.bot_data),
-                      'cron', day_of_week='mon,tue,wed,thu,fri,sat', hour=6, minute=0)
-    scheduler.add_job(lambda: broadcast_with_label(app, "Who did you miss this Wednesday?", app.bot_data),
-                      'cron', day_of_week='wed', hour=21, minute=0)
-    scheduler.add_job(lambda: broadcast_with_label(app, "Who did you miss this Sunday?", app.bot_data),
-                      'cron', day_of_week='sun', hour=13, minute=0)
+def schedule_weekly_broadcast(application):
+    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this predawn?", application.bot_data), 'cron', day_of_week='mon,tue,wed,thu,fri,sat', hour=6, minute=0)
+    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this Wednesday?", application.bot_data), 'cron', day_of_week='wed', hour=21, minute=0)
+    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this Sunday?", application.bot_data), 'cron', day_of_week='sun', hour=13, minute=0)
 
-# === 🚀 Main async runner
-def main():
+# === 🚀 Launch bot
+async def main():
     global application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -215,11 +212,10 @@ def main():
 
     print("🤖 Bot is running...")
 
-    # Manual test prompt
-    application.create_task(send_attendance_prompt(503493798, application.bot, application.bot_data, custom_text="🧪 Test: Who did you miss?"))
+    # Optional: trigger test prompt
+    await send_attendance_prompt(503493798, application.bot, application.bot_data, custom_text="🧪 Test broadcast")
 
-    application.run_polling()
+    await application.run_polling()
+
 if __name__ == "__main__":
-    main()
-
-
+    asyncio.run(main())
