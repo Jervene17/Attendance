@@ -1,5 +1,6 @@
 import requests
 import datetime
+import asyncio
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler,
@@ -52,7 +53,6 @@ MEMBER_LISTS = {
 
 user_sessions = {}
 scheduler = AsyncIOScheduler(timezone=timezone("Asia/Manila"))
-scheduler.start()
 
 # === ✅ Start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -97,11 +97,11 @@ async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="W
         func=check_for_response_timeout,
         trigger='date',
         run_date=datetime.datetime.now() + datetime.timedelta(hours=1),
-        args=[user_id, group, bot, context, application]
+        args=[user_id, group, bot, context]
     )
 
 # === 🔁 Timeout fallback
-def check_for_response_timeout(user_id, group, bot: Bot, context, app):
+def check_for_response_timeout(user_id, group, bot: Bot, context):
     if user_id in user_sessions:
         chain = FAILOVER_CHAIN.get(group, [])
         if user_id in chain:
@@ -111,7 +111,7 @@ def check_for_response_timeout(user_id, group, bot: Bot, context, app):
                 chat_id = context.bot_data["user_chats"].get(next_user)
                 if chat_id:
                     print(f"⚠️ Forwarding attendance to fallback: {next_user}")
-                    app.create_task(send_attendance_prompt(
+                    application.create_task(send_attendance_prompt(
                         next_user, bot, context,
                         custom_text=f"{group} checker didn't respond. Please handle attendance.")
                     )
@@ -201,14 +201,20 @@ def schedule_weekly_broadcast(app):
     scheduler.add_job(lambda: broadcast_with_label(app, "Who did you miss this Sunday?", app.bot_data),
                       'cron', day_of_week='sun', hour=13, minute=0)
 
-# === 🚀 Launch bot
-application = ApplicationBuilder().token(BOT_TOKEN).build()
+# === 🚀 Main async runner
+async def main():
+    global application
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(handle_button))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reason))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(handle_button))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reason))
 
-schedule_weekly_broadcast(application)
+    scheduler.start()
+    schedule_weekly_broadcast(application)
 
-print("🤖 Bot is running...")
-application.run_polling()
+    print("🤖 Bot is running...")
+    await application.run_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
