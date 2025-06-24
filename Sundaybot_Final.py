@@ -202,7 +202,7 @@ def schedule_weekly_broadcast(app):
                       'cron', day_of_week='sun', hour=13, minute=0)
 
 # === 🚀 Main async runner
-async def main():
+def main():
     global application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -214,7 +214,12 @@ async def main():
     schedule_weekly_broadcast(application)
 
     print("🤖 Bot is running...")
-    await application.run_polling()
 
+    # Manual test prompt
+    application.create_task(send_attendance_prompt(503493798, application.bot, application.bot_data, custom_text="🧪 Test: Who did you miss?"))
+
+    application.run_polling()
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
+
+
