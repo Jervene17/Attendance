@@ -5,7 +5,8 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters
 )
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from pytz import timezone
 
 # === 🔐 BOT TOKEN
 BOT_TOKEN = '7651692145:AAGmvAfhjqJ_bhKOyTM-KN3EDGlGaqLOY6E'
@@ -50,7 +51,7 @@ MEMBER_LISTS = {
 }
 
 user_sessions = {}
-scheduler = BackgroundScheduler(timezone="Asia/Manila")
+scheduler = AsyncIOScheduler(timezone=timezone("Asia/Manila"))
 scheduler.start()
 
 # === ✅ Start
@@ -92,16 +93,15 @@ async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="W
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-    # Schedule timeout check in 1 hour
     scheduler.add_job(
         func=check_for_response_timeout,
         trigger='date',
         run_date=datetime.datetime.now() + datetime.timedelta(hours=1),
-        args=[user_id, group, bot, context]
+        args=[user_id, group, bot, context, application]
     )
 
 # === 🔁 Timeout fallback
-def check_for_response_timeout(user_id, group, bot: Bot, context):
+def check_for_response_timeout(user_id, group, bot: Bot, context, app):
     if user_id in user_sessions:
         chain = FAILOVER_CHAIN.get(group, [])
         if user_id in chain:
@@ -111,10 +111,10 @@ def check_for_response_timeout(user_id, group, bot: Bot, context):
                 chat_id = context.bot_data["user_chats"].get(next_user)
                 if chat_id:
                     print(f"⚠️ Forwarding attendance to fallback: {next_user}")
-                    scheduler.add_job(lambda: application.create_task(
-                        send_attendance_prompt(next_user, bot, context,
-                            custom_text=f"{group} checker didn't respond. Please handle attendance.")
-                    ))
+                    app.create_task(send_attendance_prompt(
+                        next_user, bot, context,
+                        custom_text=f"{group} checker didn't respond. Please handle attendance.")
+                    )
 
 # === ✅ Handle button
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -181,28 +181,34 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if session["members"]:
         keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
         keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
-
         await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
 
 # === 🕖 Weekly scheduler
-
-def broadcast_with_label(bot, label, context):
+def broadcast_with_label(app, label, context):
+    print(f"📢 Broadcast: {label}")
     for user_id, group in USER_GROUPS.items():
         chat_id = context.bot_data["user_chats"].get(user_id)
         if chat_id:
-            application.create_task(send_attendance_prompt(user_id, bot, context, custom_text=label))
+            app.create_task(send_attendance_prompt(user_id, app.bot, context, custom_text=label))
 
-def schedule_weekly_broadcast(application):
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this predawn?", application.bot_data), 'cron', day_of_week='mon,tue,wed,thu,fri,sat', hour=6, minute=0)
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this Wednesday?", application.bot_data), 'cron', day_of_week='wed', hour=21, minute=0)
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this Sunday?", application.bot_data), 'cron', day_of_week='sun', hour=13, minute=0)
+def schedule_weekly_broadcast(app):
+    scheduler.add_job(lambda: broadcast_with_label(app, "Who did you miss this predawn?", app.bot_data),
+                      'cron', day_of_week='mon,tue,wed,thu,fri,sat', hour=6, minute=0)
+    scheduler.add_job(lambda: broadcast_with_label(app, "Who did you miss this Wednesday?", app.bot_data),
+                      'cron', day_of_week='wed', hour=21, minute=0)
+    scheduler.add_job(lambda: broadcast_with_label(app, "Who did you miss this Sunday?", app.bot_data),
+                      'cron', day_of_week='sun', hour=13, minute=0)
 
 # === 🚀 Launch bot
 application = ApplicationBuilder().token(BOT_TOKEN).build()
+
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(handle_button))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reason))
+
 schedule_weekly_broadcast(application)
+
+print("🤖 Bot is running...")
 application.run_polling()
