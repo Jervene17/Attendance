@@ -3,3 +3,4 @@ apscheduler
 requests
 
 pytz==2024.1
+nest_asyncio
