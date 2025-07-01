@@ -9,7 +9,7 @@ from telegram.ext import (
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# === 🔐 BOT TOKEN
+# === 🔐 BOT TOKEN (⚠️ Replace after testing)
 BOT_TOKEN = '7651692145:AAGmvAfhjqJ_bhKOyTM-KN3EDGlGaqLOY6E'
 
 # === 🌐 GOOGLE APPS SCRIPT WEB APP URL
@@ -54,7 +54,7 @@ MEMBER_LISTS = {
 user_sessions = {}
 scheduler = AsyncIOScheduler(timezone="Asia/Manila")
 
-# === ✅ Start
+# === ✅ Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     group = USER_GROUPS.get(user_id)
@@ -65,13 +65,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
     await send_attendance_prompt(user_id, context.bot, context)
 
-# === ✅ Send prompt
+# === ✅ Send attendance prompt
 async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="Who did you miss today?"):
     group = USER_GROUPS.get(user_id)
     members = MEMBER_LISTS.get(group, [])
+    chat_id = context.bot_data.get("user_chats", {}).get(user_id)
 
-    if not members:
-        await bot.send_message(chat_id=context.bot_data["user_chats"].get(user_id), text="No members found.")
+    if not members or not chat_id:
+        await bot.send_message(chat_id=chat_id, text="No members found.")
         return
 
     user_sessions[user_id] = {
@@ -88,32 +89,33 @@ async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="W
     keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
 
     await bot.send_message(
-        chat_id=context.bot_data["user_chats"].get(user_id),
+        chat_id=chat_id,
         text=custom_text,
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
+    run_at = datetime.datetime.now() + datetime.timedelta(hours=1)
     scheduler.add_job(
-        func=check_for_response_timeout,
+        lambda: asyncio.create_task(
+            check_for_response_timeout(user_id, group, bot, context)
+        ),
         trigger='date',
-        run_date=datetime.datetime.now() + datetime.timedelta(hours=1),
-        args=[user_id, group, bot, context]
+        run_date=run_at
     )
 
 # === 🔁 Timeout fallback
-def check_for_response_timeout(user_id, group, bot: Bot, context):
+async def check_for_response_timeout(user_id, group, bot: Bot, context):
     if user_id in user_sessions:
         chain = FAILOVER_CHAIN.get(group, [])
         if user_id in chain:
             idx = chain.index(user_id)
             if idx + 1 < len(chain):
                 next_user = chain[idx + 1]
-                chat_id = context.bot_data["user_chats"].get(next_user)
+                chat_id = context.bot_data.get("user_chats", {}).get(next_user)
                 if chat_id:
-                    print(f"⚠️ Forwarding attendance to fallback: {next_user}")
-                    asyncio.create_task(
-                        send_attendance_prompt(next_user, bot, context,
-                            custom_text=f"{group} checker didn't respond. Please handle attendance.")
+                    await send_attendance_prompt(
+                        next_user, bot, context,
+                        custom_text=f"{group} checker didn't respond. Please handle attendance."
                     )
 
 # === ✅ Handle button
@@ -122,6 +124,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = query.from_user.id
     session = user_sessions.get(user_id)
+
     if not session:
         await query.edit_message_text("Session expired. Send /start again.")
         return
@@ -161,14 +164,14 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
         keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
-
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 
-# === ✅ Handle reason
+# === ✅ Handle reason input
 async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     session = user_sessions.get(user_id)
     awaiting = context.user_data.get("awaiting_reason")
+
     if not awaiting or not session:
         await update.message.reply_text("Please start with /start.")
         return
@@ -181,7 +184,6 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if session["members"]:
         keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
         keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
-
         await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
@@ -189,18 +191,20 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # === 🕖 Weekly scheduler
 def broadcast_with_label(bot, label, context):
     for user_id in USER_GROUPS:
-        chat_id = context.bot_data["user_chats"].get(user_id)
+        chat_id = context.bot_data.get("user_chats", {}).get(user_id)
         if chat_id:
             asyncio.create_task(send_attendance_prompt(user_id, bot, context, custom_text=label))
 
 def schedule_weekly_broadcast(application):
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this predawn?", application.bot_data), 'cron', day_of_week='mon,tue,wed,thu,fri,sat', hour=6, minute=0)
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this Wednesday?", application.bot_data), 'cron', day_of_week='wed', hour=21, minute=0)
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this Sunday?", application.bot_data), 'cron', day_of_week='sun', hour=13, minute=0)
+    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this predawn?", application.bot_data),
+                      'cron', day_of_week='mon,tue,wed,thu,fri,sat', hour=6, minute=0)
+    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this Wednesday?", application.bot_data),
+                      'cron', day_of_week='wed', hour=21, minute=0)
+    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this Sunday?", application.bot_data),
+                      'cron', day_of_week='sun', hour=13, minute=0)
 
 # === 🚀 Launch bot
 async def main():
-    global application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -211,18 +215,7 @@ async def main():
     schedule_weekly_broadcast(application)
 
     print("🤖 Bot is running...")
-
-    # Create a fake context with bot_data
-    class MockContext:
-        def __init__(self):
-            self.bot_data = {}
-            self.user_data = {}
-
-    mock_context = MockContext()
-    mock_context.bot_data["user_chats"] = {503493798: 503493798}
-
-    # ✅ Trigger a test prompt
-    await send_attendance_prompt(503493798, application.bot, mock_context, custom_text="🧪 Test broadcast")
-
     await application.run_polling()
 
+if __name__ == "__main__":
+    asyncio.run(main())
