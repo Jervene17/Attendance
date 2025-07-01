@@ -8,8 +8,11 @@ from telegram.ext import (
     MessageHandler, ContextTypes, filters
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import nest_asyncio
 
-# === 🔐 BOT TOKEN (⚠️ Replace after testing)
+nest_asyncio.apply()
+
+# === 🔐 BOT TOKEN
 BOT_TOKEN = '7651692145:AAGmvAfhjqJ_bhKOyTM-KN3EDGlGaqLOY6E'
 
 # === 🌐 GOOGLE APPS SCRIPT WEB APP URL
@@ -40,16 +43,15 @@ FAILOVER_CHAIN = {
 
 # === 👤 Members
 MEMBER_LISTS = {
-    "FAMILY FEMALES": ["Fatima","Vangie","Hannah","M Ru","Dcn Frances","Shayne","Dcn Issa"],
-    "FAMILY MALES": ["Dcn Ian","M Jervene","Jessie","Fernan","Almen","Dcn Probo","Mjhay"],
-    "CAREER MALES": ["Jabs","Xander","Franz", "Daniel", "Jiboy","Venancio","Iven"],
+    "FAMILY FEMALES": ["Fatima", "Vangie", "Hannah", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa"],
+    "FAMILY MALES": ["Dcn Ian", "M Jervene", "Jessie", "Fernan", "Almen", "Dcn Probo", "Mjhay"],
+    "CAREER MALES": ["Jabs", "Xander", "Franz", "Daniel", "Jiboy", "Venancio", "Iven"],
     "CAMPUS MALES": ["Nikko"],
-    "CAREER FEMALES 1": ["Shaja", "Grace","Daryl","Clarice","Mia","Aliza","Anica"],
-    "CAREER FEMALES 2": ["Mel","Andrea","Angel","Ina","M Rose","Vicky","Donna"],
-    "CAREER FEMALES 3": ["PP Bam","Zhandra","Trina","Dr Kristine"],
-    "CAMPUS FEMALES" : ["Divine","Marinell","Glenda"],
-    "JS FEMALES": ["MCor","Tita Merlita", "Grace","Emeru"],
-    
+    "CAREER FEMALES 1": ["Shaja", "Grace", "Daryl", "Clarice", "Mia", "Aliza", "Anica"],
+    "CAREER FEMALES 2": ["Mel", "Andrea", "Angel", "Ina", "M Rose", "Vicky", "Donna"],
+    "CAREER FEMALES 3": ["PP Bam", "Zhandra", "Trina", "Dr Kristine"],
+    "CAMPUS FEMALES": ["Divine", "Marinell", "Glenda"],
+    "JS FEMALES": ["MCor", "Tita Merlita", "Grace", "Emeru"],
 }
 
 user_sessions = {}
@@ -64,10 +66,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
-    await send_attendance_prompt(user_id, context.bot, context)
+    await send_attendance_prompt(user_id, context.bot, context, label="Predawn", custom_text="Who did you miss this Predawn?")
 
 # === ✅ Send attendance prompt
-async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="Who did you miss today?"):
+async def send_attendance_prompt(user_id, bot: Bot, context=None, label="Predawn", custom_text="Who did you miss today?"):
     group = USER_GROUPS.get(user_id)
     members = MEMBER_LISTS.get(group, [])
     chat_id = context.bot_data.get("user_chats", {}).get(user_id)
@@ -84,7 +86,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="W
         "prompt_time": datetime.datetime.now()
     }
 
-    context.bot_data.setdefault("context_by_user", {})[user_id] = custom_text.split("this ")[-1].replace("?", "")
+    context.bot_data.setdefault("context_by_user", {})[user_id] = label
 
     keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in members]
     keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
@@ -98,14 +100,14 @@ async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="W
     run_at = datetime.datetime.now() + datetime.timedelta(hours=1)
     scheduler.add_job(
         lambda: asyncio.create_task(
-            check_for_response_timeout(user_id, group, bot, context)
+            check_for_response_timeout(user_id, group, bot, context, label)
         ),
         trigger='date',
         run_date=run_at
     )
 
 # === 🔁 Timeout fallback
-async def check_for_response_timeout(user_id, group, bot: Bot, context):
+async def check_for_response_timeout(user_id, group, bot: Bot, context, label):
     if user_id in user_sessions:
         chain = FAILOVER_CHAIN.get(group, [])
         if user_id in chain:
@@ -116,7 +118,8 @@ async def check_for_response_timeout(user_id, group, bot: Bot, context):
                 if chat_id:
                     await send_attendance_prompt(
                         next_user, bot, context,
-                        custom_text=f"{group} checker didn't respond. Please handle attendance."
+                        label=label,
+                        custom_text=f"{group} checker didn't respond. Please handle attendance for {label}."
                     )
 
 # === ✅ Handle button
@@ -194,15 +197,31 @@ def broadcast_with_label(bot, label, context):
     for user_id in USER_GROUPS:
         chat_id = context.bot_data.get("user_chats", {}).get(user_id)
         if chat_id:
-            asyncio.create_task(send_attendance_prompt(user_id, bot, context, custom_text=label))
+            asyncio.create_task(send_attendance_prompt(user_id, bot, context, label=label, custom_text=f"Who did you miss this {label}?"))
 
 def schedule_weekly_broadcast(application):
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this predawn?", application.bot_data),
+    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Predawn", application.bot_data),
                       'cron', day_of_week='mon,tue,wed,thu,fri,sat', hour=6, minute=0)
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this Wednesday?", application.bot_data),
+    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Wednesday Service", application.bot_data),
                       'cron', day_of_week='wed', hour=21, minute=0)
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Who did you miss this Sunday?", application.bot_data),
+    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Sunday Service", application.bot_data),
                       'cron', day_of_week='sun', hour=13, minute=0)
+
+# === 🧪 Test Commands for Manual Prompting
+async def test_predawn(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
+    await send_attendance_prompt(user_id, context.bot, context, label="Predawn", custom_text="🧪 Test: Who did you miss this Predawn?")
+
+async def test_wednesday(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
+    await send_attendance_prompt(user_id, context.bot, context, label="Wednesday Service", custom_text="🧪 Test: Who did you miss this Wednesday Service?")
+
+async def test_sunday(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
+    await send_attendance_prompt(user_id, context.bot, context, label="Sunday Service", custom_text="🧪 Test: Who did you miss this Sunday Service?")
 
 # === 🚀 Launch bot
 async def main():
@@ -212,16 +231,16 @@ async def main():
     application.add_handler(CallbackQueryHandler(handle_button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reason))
 
+    # Add test command handlers
+    application.add_handler(CommandHandler("test_predawn", test_predawn))
+    application.add_handler(CommandHandler("test_wednesday", test_wednesday))
+    application.add_handler(CommandHandler("test_sunday", test_sunday))
+
     scheduler.start()
     schedule_weekly_broadcast(application)
 
     print("🤖 Bot is running...")
     await application.run_polling()
-
-import nest_asyncio
-import asyncio
-
-nest_asyncio.apply()
 
 if __name__ == "__main__":
     asyncio.run(main())
