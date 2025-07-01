@@ -17,12 +17,12 @@ WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwR2zO90VW6LIQr8BO3Aray8V
 
 # === 👥 Group Assignments
 USER_GROUPS = {
-    503493798: "FAMILY",
+    503493798: "FAMILY FEMALES",
     222222222: "CAREER MALES",
     333333333: "CAREER FEMALES",
     444444444: "CAMPUS FEMALES",
     555555555: "JS FEMALES",
-    515714808: "MEMBERS ABROAD",
+    515714808: "FAMILY MALES",
 }
 
 # === ⛑️ Failover chain
