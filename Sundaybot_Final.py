@@ -40,14 +40,14 @@ FAILOVER_CHAIN = {
 
 # === 👤 Members
 MEMBER_LISTS = {
-    "FAMILY FEMALES": ["Fatima","Vangie","Hannah", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa"],
-    "FAMILY MALES": ["Dcn Ian","M Jervene","Jessie","Fernan","Almen","Dcn Probo", "Mjhay"]
+    "FAMILY FEMALES": ["Fatima","Vangie","Hannah","M Ru","Dcn Frances","Shayne","Dcn Issa"],
+    "FAMILY MALES": ["Dcn Ian","M Jervene","Jessie","Fernan","Almen","Dcn Probo","Mjhay"],
     "CAREER MALES": ["Jabs","Xander","Franz", "Daniel", "Jiboy","Venancio","Iven"],
-    "CAMPUS MALES": ["Nikko"]
+    "CAMPUS MALES": ["Nikko"],
     "CAREER FEMALES 1": ["Shaja", "Grace","Daryl","Clarice","Mia","Aliza","Anica"],
     "CAREER FEMALES 2": ["Mel","Andrea","Angel","Ina","M Rose","Vicky","Donna"],
-    "CAREER FEMALES 3": ["PP Bam","Zhandra","Trina","Dr Kristine"]
-    "CAMPUS FEMALES" : ["Divine","Marinell","Glenda"]
+    "CAREER FEMALES 3": ["PP Bam","Zhandra","Trina","Dr Kristine"],
+    "CAMPUS FEMALES" : ["Divine","Marinell","Glenda"],
     "JS FEMALES": ["MCor","Tita Merlita", "Grace","Emeru"],
     "MEMBERS ABROAD": ["*Riza", "*Saeyeong"],
 }
