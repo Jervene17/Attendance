@@ -27,28 +27,29 @@ USER_GROUPS = {
 
 # === ⛑️ Failover chain
 FAILOVER_CHAIN = {
-    "FAMILY": [503493798, 515714808],
+    "FAMILY FEMALES": [503493798, 515714808],
+    "FAMILY MALES": [515714808, 503493798],
     "CAREER MALES": [222222222, 515714808],
-    "CAREER FEMALES": [333333333, 515714808],
+    "CAMPUS MALES": [666666666, 515714808],
+    "CAREER FEMALES 1": [333333333, 515714808],
+    "CAREER FEMALES 2": [101010101, 515714808],
+    "CAREER FEMALES 3": [999999999, 515714808],
     "CAMPUS FEMALES": [444444444, 515714808],
     "JS FEMALES": [555555555, 515714808],
-    "MEMBERS ABROAD": [515714808],
-    "ACTIVE NC": [444444444, 515714808],
-    "Visitors": [444444444, 515714808],
-    "OTHER MEMBERS": [444444444, 515714808]
 }
 
 # === 👤 Members
 MEMBER_LISTS = {
-    "FAMILY": ["M Jervene", "Dcn Issa", "Shayne"],
-    "CAREER MALES": ["Alexander", "Jiboy"],
-    "CAREER FEMALES": ["Aliza", "Angel"],
-    "CAMPUS FEMALES": ["Marinell"],
-    "JS FEMALES": ["Tita Merlita", "Grace"],
+    "FAMILY FEMALES": ["Fatima","Vangie","Hannah", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa"],
+    "FAMILY MALES": ["Dcn Ian","M Jervene","Jessie","Fernan","Almen","Dcn Probo", "Mjhay"]
+    "CAREER MALES": ["Jabs","Xander","Franz", "Daniel", "Jiboy","Venancio","Iven"],
+    "CAMPUS MALES": ["Nikko"]
+    "CAREER FEMALES 1": ["Shaja", "Grace","Daryl","Clarice","Mia","Aliza","Anica"],
+    "CAREER FEMALES 2": ["Mel","Andrea","Angel","Ina","M Rose","Vicky","Donna"],
+    "CAREER FEMALES 3": ["PP Bam","Zhandra","Trina","Dr Kristine"]
+    "CAMPUS FEMALES" : ["Divine","Marinell","Glenda"]
+    "JS FEMALES": ["MCor","Tita Merlita", "Grace","Emeru"],
     "MEMBERS ABROAD": ["*Riza", "*Saeyeong"],
-    "ACTIVE NC": ["Hannah", "Fernan"],
-    "Visitors": ["Randrew Dela Cruz"],
-    "OTHER MEMBERS": ["PP Gene Ann"]
 }
 
 user_sessions = {}
