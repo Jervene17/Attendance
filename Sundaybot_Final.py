@@ -49,7 +49,7 @@ MEMBER_LISTS = {
     "CAREER FEMALES 3": ["PP Bam","Zhandra","Trina","Dr Kristine"],
     "CAMPUS FEMALES" : ["Divine","Marinell","Glenda"],
     "JS FEMALES": ["MCor","Tita Merlita", "Grace","Emeru"],
-    "MEMBERS ABROAD": ["*Riza", "*Saeyeong"],
+    
 }
 
 user_sessions = {}
