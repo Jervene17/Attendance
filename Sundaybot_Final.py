@@ -90,7 +90,7 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
     await update.message.reply_text("Welcome! Please wait for the attendance prompt from your group admin.")
 
-aasync def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     session = user_sessions.get(user_id)
 
