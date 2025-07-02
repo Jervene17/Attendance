@@ -171,7 +171,7 @@ async def submit_attendance(user_id, context, query):
         all_absentees = [{"name": "ALL ACCOUNTED", "reason": ""}]
 
     data = {
-        "group": session["group_tab"],  # make sure key is correct
+        "group": session["group"],  # ✅ fixed
         "label": session["label"],
         "date": datetime.datetime.now().strftime("%Y-%m-%d"),
         "absentees": all_absentees
@@ -183,11 +183,9 @@ async def submit_attendance(user_id, context, query):
     except Exception as e:
         await query.edit_message_text(f"❌ Submission failed: {e}")
 
-    # ✅ Optional: Update progress message if you're using live tracking
-    submitted = context.bot_data.setdefault("submitted_users", [])
-    if user_id not in submitted:
-        submitted.append(user_id)
-    await update_progress_message(context)
+    # ✅ correct function for progress update
+    await update_progress(user_id, context)
+
 
 async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE, label: str):
     submitted_users = set()
