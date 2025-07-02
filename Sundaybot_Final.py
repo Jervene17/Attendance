@@ -149,7 +149,8 @@ async def submit_attendance(user_id, context, query):
         "label": session["label"],
         "date": datetime.datetime.now().strftime("%Y-%m-%d"),
         "absentees": [{"name": name, "reason": session["reasons"].get(name, "")} for name in session["selected"]] +
-                     [{"name": v, "reason": "VISITOR"} for v in session["visitors"]] or [{"name": "ALL ACCOUNTED", "reason": ""}]
+             [{"name": v, "reason": "VISITOR"} for v in session["visitors"]] +
+             [{"name": n, "reason": "NEWCOMER"} for n in session["newcomers"]] or [{"name": "ALL ACCOUNTED", "reason": ""}]
     }
     try:
         requests.post(WEBHOOK_URL, json=data)
