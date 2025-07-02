@@ -28,15 +28,15 @@ USER_GROUPS = {
     515714808: "FAMILY MALES",
 }
 
-USERNAMES = {
-    503493798: "@familyfemales",
-    222222222: "@careermales",
-    333333333: "@careerfemales1",
-    777777777: "@careerfemales2",
-    666666666: "@careerfemales3",
-    444444444: "@campusfemales",
-    555555555: "@jsfemales",
-    515714808: "@familymales",
+USER_NAMES = {
+    503493798: "Fatima",
+    222222222: "Jabs",
+    333333333: "Shaja",
+    777777777: "Mel",
+    666666666: "D Rue",
+    444444444: "Divine",
+    555555555: "MCor",
+    515714808: "Jervene",
 }
 
 MEMBER_LISTS = {
@@ -229,10 +229,10 @@ async def update_progress(user_id, context):
     waiting = []
     for uid in USER_GROUPS:
         if uid not in progress["submitted"]:
-            mention = f"[user](tg://user?id={uid})"
-            waiting.append(mention)
+            name = USER_NAMES.get(uid, f"User {uid}")
+            waiting.append(escape_markdown(name))
 
-    text = escape_markdown(f"✅ {submitted}/{total} submitted.\nStill waiting for: {', '.join(waiting)}")
+    text = f"✅ {submitted}/{total} submitted.\nStill waiting for: {', '.join(waiting)}"
 
     await context.bot.edit_message_text(
         text=text,
