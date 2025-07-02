@@ -222,7 +222,9 @@ async def test_sunday(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
     await send_attendance_prompt(user_id, context.bot, context, label="Sunday Service", custom_text="🧪 Test: Who did you miss this Sunday Service?")
-
+async def test_scheduler_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳ Manually triggering broadcast_with_label(Predawn)...")
+    broadcast_with_label(context.bot, "Predawn", context.bot_data)
 # === 🚀 Launch bot
 async def main():
     application = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -235,6 +237,8 @@ async def main():
     application.add_handler(CommandHandler("test_predawn", test_predawn))
     application.add_handler(CommandHandler("test_wednesday", test_wednesday))
     application.add_handler(CommandHandler("test_sunday", test_sunday))
+    application.add_handler(CommandHandler("test_scheduler_now", test_scheduler_now))
+
 
     scheduler.start()
     schedule_weekly_broadcast(application)
