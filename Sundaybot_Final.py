@@ -65,7 +65,18 @@ scheduler = AsyncIOScheduler(timezone="Asia/Manila")
 # --- Core Handlers ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ You can start using commands like /predawn, /sunday, or /wednesday.")
+    if update.effective_chat.type != "private":
+        await update.message.reply_text("❌ Please send /start in a private message to the bot.")
+        return
+
+    user_id = update.effective_user.id
+    group = USER_GROUPS.get(user_id)
+    if not group:
+        await update.message.reply_text("❌ You are not assigned to a group.")
+        return
+
+    context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
+    await update.message.reply_text("✅ Start acknowledged. You can now receive attendance prompts.")
 
 async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
