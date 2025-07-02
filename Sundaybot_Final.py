@@ -26,6 +26,17 @@ USER_GROUPS = {
     515714808: "FAMILY MALES",
 }
 
+USERNAMES = {
+    503493798: "@fdevosor",
+    222222222: "@careermales",
+    333333333: "@careerfemales1",
+    777777777: "@careerfemales2",
+    666666666: "@careerfemales3",
+    444444444: "@campusfemales",
+    555555555: "@jsfemales",
+    515714808: "@Jervene17",
+}
+
 MEMBER_LISTS = {
     "FAMILY FEMALES": ["Fatima", "Vangie", "Hannah", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa"],
     "FAMILY MALES": ["Dcn Ian", "M Jervene", "Jessie", "Almen", "Dcn Probo", "Mjhay"],
@@ -207,9 +218,14 @@ async def update_progress(user_id, context):
     progress["submitted"].add(user_id)
     total = len(USER_GROUPS)
     submitted = len(progress["submitted"])
-    waiting = [str(uid) for uid in USER_GROUPS if uid not in progress["submitted"]]
+    waiting = [USERNAMES.get(uid, f"[user](tg://user?id={uid})") for uid in USER_GROUPS if uid not in progress["submitted"]]
     text = f"✅ {submitted}/{total} submitted.\nStill waiting for: {', '.join(waiting)}"
-    await context.bot.edit_message_text(text=text, chat_id=progress["chat_id"], message_id=progress["message_id"])
+    await context.bot.edit_message_text(
+        text=text,
+        chat_id=progress["chat_id"],
+        message_id=progress["message_id"],
+        parse_mode="Markdown"
+    )
 
 async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
