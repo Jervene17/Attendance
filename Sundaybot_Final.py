@@ -2,7 +2,7 @@ import requests
 import datetime
 import asyncio
 from pytz import timezone
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update, Message
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters
@@ -12,29 +12,24 @@ import nest_asyncio
 
 nest_asyncio.apply()
 
-# === 🔐 BOT TOKEN
 BOT_TOKEN = '7651692145:AAGmvAfhjqJ_bhKOyTM-KN3EDGlGaqLOY6E'
-
-# === 🌐 GOOGLE APPS SCRIPT WEB APP URL
 WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwR2zO90VW6LIQr8BO3Aray8VXXoKgotu90n_HVZ4yUvmLO2ZZB-6pN85yw-U8WMvIz/exec'
 
-# === 🛑 Service-Specific Exclusions
 EXCLUSIONS = {
     "Predawn": {
         "CAREER MALES": ["Taiki"],
-        "CAREER FEMALES 2": ["Donna","Vicky"],
+        "CAREER FEMALES 2": ["Donna", "Vicky"],
         "CAREER FEMALES 3": ["Riza", "Saeyong"],
-        "JS": ["Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann","Rhea Cho", "Gemma", "Yolly", "Weng"]
+        "JS": ["Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
     },
     "Wednesday": {
         "CAREER MALES": ["Taiki"],
-        "CAREER FEMALES 2": ["Donna","Vicky"],
+        "CAREER FEMALES 2": ["Donna", "Vicky"],
         "CAREER FEMALES 3": ["Riza"],
-        "JS FEMALES": ["Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann","Rhea Cho", "Gemma", "Yolly", "Weng"]
+        "JS FEMALES": ["Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
     }
 }
 
-# === 👥 Group Assignments
 USER_GROUPS = {
     503493798: "FAMILY FEMALES",
     222222222: "CAREER MALES",
@@ -46,19 +41,22 @@ USER_GROUPS = {
     515714808: "FAMILY MALES",
 }
 
-# === 👤 Members
+USERNAMES = {
+    503493798: "@fdevosor",
+    515714808: "@Jervene17",
+}
+
 MEMBER_LISTS = {
     "FAMILY FEMALES": ["Fatima", "Vangie", "Hannah", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa"],
     "FAMILY MALES": ["Dcn Ian", "M Jervene", "Jessie", "Fernan", "Almen", "Dcn Probo", "Mjhay"],
     "CAREER MALES": ["Jabs", "Xander", "Franz", "Daniel", "Jiboy", "Venancio", "Iven", "Taiki"],
     "CAREER FEMALES 1": ["Shaja", "Grace", "Daryl", "Clarice", "Mia", "Aliza", "Anica"],
     "CAREER FEMALES 2": ["Mel", "Andrea", "Angel", "Inia", "M Rose", "Vicky", "Donna"],
-    "CAREER FEMALES 3": ["D Rue", "PP Bam", "Zhandra", "Trina", "Dr Kristine", "Riza", "Saeyong", "Mirasol","Joan"],
+    "CAREER FEMALES 3": ["D Rue", "PP Bam", "Zhandra", "Trina", "Dr Kristine", "Riza", "Saeyong", "Mirasol", "Joan"],
     "CAMPUS FEMALES": ["Divine", "Marinell"],
     "JS FEMALES": ["MCor", "Tita Merlita", "Grace", "Emeru", "Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
 }
 
-# === ⛑️ Failover chain
 FAILOVER_CHAIN = {
     "FAMILY FEMALES": [503493798, 515714808],
     "FAMILY MALES": [515714808, 503493798],
@@ -72,16 +70,13 @@ FAILOVER_CHAIN = {
 }
 
 user_sessions = {}
-scheduler = AsyncIOScheduler(timezone="Asia/Manila")
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    group = USER_GROUPS.get(user_id)
-    if not group:
-        await update.message.reply_text("❌ You are not assigned to a group.")
-        return
-    context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
-    await send_attendance_prompt(user_id, context.bot, context)
+submission_progress = {
+    "group_message_id": None,
+    "chat_id": None,
+    "label": None,
+    "total": 0,
+    "submitted": set()
+}
 
 async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="Who did you miss this Predawn?"):
     group = USER_GROUPS.get(user_id)
@@ -111,13 +106,12 @@ async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="W
 
     await bot.send_message(chat_id=chat_id, text=custom_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-    scheduler.add_job(
-        lambda: asyncio.create_task(
-            check_for_response_timeout(user_id, group, bot, context)
-        ),
-        trigger='date',
-        run_date=datetime.datetime.now() + datetime.timedelta(hours=1)
-    )
+    async def delayed_fallback():
+        await asyncio.sleep(3600)  # 1 hour
+        if user_id in user_sessions:
+            await check_for_response_timeout(user_id, group, bot, context)
+
+    asyncio.create_task(delayed_fallback())
 
 async def check_for_response_timeout(user_id, group, bot: Bot, context):
     if user_id in user_sessions:
@@ -161,7 +155,12 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text(f"❌ Failed to submit: {response.status_code}")
         except Exception as e:
             await query.edit_message_text(f"❌ Error submitting: {e}")
+
         user_sessions.pop(user_id, None)
+
+        # Update group progress
+        submission_progress["submitted"].add(user_id)
+        await update_group_progress(context)
     else:
         session["selected"].append(selected)
         session["members"].remove(selected)
@@ -191,24 +190,66 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
 
-def broadcast_with_label(bot, label, context):
-    for user_id in USER_GROUPS:
+async def update_group_progress(context: ContextTypes.DEFAULT_TYPE):
+    if submission_progress["group_message_id"] and submission_progress["chat_id"]:
+        submitted = len(submission_progress["submitted"])
+        total = submission_progress["total"]
+        remaining = [USERNAMES.get(uid, f"User {uid}") for uid in submission_progress["all_users"] if uid not in submission_progress["submitted"]]
+        mention_str = ", ".join(remaining)
+        text = f"✅ {submitted}/{total} submitted."
+        if remaining:
+            text += f"\nStill waiting for: {mention_str}"
+        else:
+            text += "\n🎉 All submitted."
+        try:
+            await context.bot.edit_message_text(chat_id=submission_progress["chat_id"], message_id=submission_progress["group_message_id"], text=text)
+        except:
+            pass
+
+async def start_submission(update: Update, context: ContextTypes.DEFAULT_TYPE, label):
+    group_chat_id = update.effective_chat.id
+    all_users = list(USER_GROUPS.keys())
+    submission_progress.update({
+        "group_message_id": None,
+        "chat_id": group_chat_id,
+        "label": label,
+        "submitted": set(),
+        "total": len(all_users),
+        "all_users": all_users
+    })
+    msg = await context.bot.send_message(chat_id=group_chat_id, text=f"📝 Logging for {label} started. 0/{len(all_users)} submitted.")
+    submission_progress["group_message_id"] = msg.message_id
+    for user_id in all_users:
         chat_id = context.bot_data.get("user_chats", {}).get(user_id)
         if chat_id:
-            asyncio.create_task(send_attendance_prompt(user_id, bot, context, custom_text=f"Who did you miss this {label}?"))
+            await send_attendance_prompt(user_id, context.bot, context, custom_text=f"Who did you miss this {label}?")
 
-def schedule_weekly_broadcast(application):
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Predawn", application.bot_data), 'cron', day_of_week='mon,tue,wed,thu,fri,sat', hour=6, minute=0)
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Wednesday", application.bot_data), 'cron', day_of_week='wed', hour=21, minute=0)
-    scheduler.add_job(lambda: broadcast_with_label(application.bot, "Sunday", application.bot_data), 'cron', day_of_week='sun', hour=13, minute=0)
+async def predawn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await start_submission(update, context, "Predawn")
+
+async def wednesday_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await start_submission(update, context, "Wednesday")
+
+async def sunday_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await start_submission(update, context, "Sunday")
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    group = USER_GROUPS.get(user_id)
+    if not group:
+        await update.message.reply_text("❌ You are not assigned to a group.")
+        return
+    context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
+    await update.message.reply_text("✅ You are now registered with the bot.")
 
 async def main():
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("predawn", predawn_command))
+    application.add_handler(CommandHandler("wednesday", wednesday_command))
+    application.add_handler(CommandHandler("sunday", sunday_command))
     application.add_handler(CallbackQueryHandler(handle_button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reason))
-    scheduler.start()
-    schedule_weekly_broadcast(application)
     print("🤖 Bot is running...")
     await application.run_polling()
 
