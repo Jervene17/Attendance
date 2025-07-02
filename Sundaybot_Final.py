@@ -226,12 +226,7 @@ async def update_progress(user_id, context):
     total = len(USER_GROUPS)
     submitted = len(progress["submitted"])
 
-    waiting = []
-    for uid in USER_GROUPS:
-        if uid not in progress["submitted"]:
-            name = USER_NAMES.get(uid, f"User {uid}")
-            waiting.append(escape_markdown(name))
-
+    waiting = [escape_markdown(USER_NAMES.get(uid, f"User {uid}")) for uid in USER_GROUPS if uid not in progress["submitted"]]
     text = f"✅ {submitted}/{total} submitted.\nStill waiting for: {', '.join(waiting)}"
 
     await context.bot.edit_message_text(
