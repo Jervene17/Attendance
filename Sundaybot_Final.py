@@ -20,7 +20,7 @@ EXCLUSIONS = {
         "CAREER MALES": ["Taiki"],
         "CAREER FEMALES 2": ["Donna", "Vicky"],
         "CAREER FEMALES 3": ["Riza", "Saeyong"],
-        "JS": ["Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
+        "JS FEMALES": ["Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
     },
     "Wednesday": {
         "CAREER MALES": ["Taiki"],
@@ -54,6 +54,7 @@ MEMBER_LISTS = {
 
 user_sessions = {}
 scheduler = AsyncIOScheduler(timezone="Asia/Manila")
+group_progress = {}
 
 async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="Who did you miss this Predawn?"):
     group = USER_GROUPS.get(user_id)
@@ -76,14 +77,13 @@ async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="W
         "selected": [],
         "reasons": {},
         "visitors": [],
+        "newcomers": [],
         "prompt_time": datetime.datetime.now()
     }
 
     keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in members]
-    keyboard.append([
-        InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR"),
-        InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")
-    ])
+    keyboard.append([InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")])
+    keyboard.append([InlineKeyboardButton("🆕 Add Newcomer", callback_data="ADD_NEWCOMER")])
     keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
 
     await bot.send_message(chat_id=chat_id, text=custom_text, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -129,49 +129,41 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     selected = query.data
     if selected == "ALL ACCOUNTED":
-        date_today = datetime.datetime.now().strftime("%Y-%m-%d")
         label = context.bot_data.get("context_by_user", {}).get(user_id, "Predawn")
-        absentees = [
-            {"name": name, "reason": session["reasons"].get(name, "")}
-            for name in session["selected"]
-        ] if session["selected"] else [{"name": "ALL ACCOUNTED", "reason": ""}]
-
-        for visitor in session.get("visitors", []):
-            absentees.append({"name": visitor, "reason": "VISITOR"})
-
+        absentees = [{"name": name, "reason": session["reasons"].get(name, "")} for name in session["selected"]]
+        absentees += [{"name": v, "reason": "VISITOR"} for v in session["visitors"]]
+        absentees += [{"name": n, "reason": "NEWCOMER"} for n in session["newcomers"]]
         data = {
             "group": session["group_tab"],
-            "date": date_today,
+            "date": datetime.datetime.now().strftime("%Y-%m-%d"),
             "label": label,
-            "absentees": absentees
+            "absentees": absentees or [{"name": "ALL ACCOUNTED", "reason": ""}]
         }
         try:
             response = requests.post(WEBHOOK_URL, json=data)
-            if response.ok:
-                await query.edit_message_text("✅ Attendance submitted.\n" + response.text)
-            else:
-                await query.edit_message_text(f"❌ Failed to submit: {response.status_code}")
+            await query.edit_message_text("✅ Attendance submitted.\n" + (response.text if response.ok else f"❌ Failed ({response.status_code})"))
         except Exception as e:
             await query.edit_message_text(f"❌ Error submitting: {e}")
         user_sessions.pop(user_id, None)
     elif selected == "ADD_VISITOR":
         context.user_data["awaiting_visitor"] = True
-        await query.message.reply_text("Please type the name of the visitor to add:")
+        await query.message.reply_text("Please type the name of the visitor:")
     elif selected == "ADD_NEWCOMER":
         context.user_data["awaiting_newcomer"] = True
-        await query.message.reply_text("Please type the name of the newcomer to add:")
+        await query.message.reply_text("Please type the name of the newcomer:")
     else:
         session["selected"].append(selected)
         session["members"].remove(selected)
         context.user_data["awaiting_reason"] = selected
         await query.message.reply_text(f"Why did you miss {selected}?")
-        keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
-        keyboard.append([
-            InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR"),
-            InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")
-        ])
-        keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
-        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+        await update_keyboard(query, session)
+
+async def update_keyboard(query, session):
+    keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
+    keyboard.append([InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")])
+    keyboard.append([InlineKeyboardButton("🆕 Add Newcomer", callback_data="ADD_NEWCOMER")])
+    keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
+    await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -184,7 +176,7 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Added visitor: {name}")
     elif context.user_data.get("awaiting_newcomer"):
         name = update.message.text.strip()
-        session["visitors"].append(f"Newcomer - {name}")
+        session["newcomers"].append(f"Newcomer - {name}")
         del context.user_data["awaiting_newcomer"]
         await update.message.reply_text(f"✅ Added newcomer: {name}")
     else:
@@ -192,39 +184,36 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not awaiting or not session:
             await update.message.reply_text("Please start with /start.")
             return
-        reason = update.message.text.strip()
-        session["reasons"][awaiting] = reason
+        session["reasons"][awaiting] = update.message.text.strip()
         del context.user_data["awaiting_reason"]
-        await update.message.reply_text(f"Recorded reason for {awaiting} ✅")
+        await update.message.reply_text(f"📌 Reason recorded for {awaiting}")
 
-    if session and session["members"]:
+    if session["members"]:
         keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
-        keyboard.append([
-            InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR"),
-            InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")
-        ])
+        keyboard.append([InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")])
+        keyboard.append([InlineKeyboardButton("🆕 Add Newcomer", callback_data="ADD_NEWCOMER")])
         keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
         await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
-    elif session:
+    else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
 
 async def broadcast_attendance(context: ContextTypes.DEFAULT_TYPE, label: str):
+    context.bot_data["context_by_user"] = {}
     for user_id in USER_GROUPS:
-        chat_id = context.bot_data.get("user_chats", {}).get(user_id)
-        if chat_id:
-            await send_attendance_prompt(user_id, context.bot, context, custom_text=f"Who did you miss this {label}?")
+        context.bot_data.setdefault("user_chats", {}).setdefault(user_id, user_id)
+        await send_attendance_prompt(user_id, context.bot, context, custom_text=f"Who did you miss this {label}?")
 
 async def predawn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await broadcast_attendance(context, "Predawn")
-    await update.message.reply_text("📢 Predawn attendance collection started.")
+    await update.message.reply_text("📢 Predawn attendance started.")
 
 async def sunday_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await broadcast_attendance(context, "Sunday")
-    await update.message.reply_text("📢 Sunday attendance collection started.")
+    await update.message.reply_text("📢 Sunday attendance started.")
 
 async def wednesday_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await broadcast_attendance(context, "Wednesday")
-    await update.message.reply_text("📢 Wednesday attendance collection started.")
+    await update.message.reply_text("📢 Wednesday attendance started.")
 
 async def main():
     application = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -240,5 +229,4 @@ async def main():
     await application.run_polling()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(main())
