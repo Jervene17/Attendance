@@ -192,6 +192,15 @@ async def main():
     scheduler.start()
     print("🤖 Bot is running...")
     await application.run_polling()
+    application.add_handler(CommandHandler("restart_attendance", restart_attendance))
+
+async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id in user_sessions:
+        user_sessions.pop(user_id)
+        await update.message.reply_text("🔁 Your attendance session has been reset. You can now send the command again.")
+    else:
+        await update.message.reply_text("ℹ️ You have no active session to reset.")
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
