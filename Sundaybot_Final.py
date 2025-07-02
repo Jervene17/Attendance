@@ -80,7 +80,10 @@ async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="W
     }
 
     keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in members]
-    keyboard.append([InlineKeyboardButton("➕ Add Visitor/Newcomer", callback_data="ADD_VISITOR")])
+    keyboard.append([
+        InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR"),
+        InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")
+    ])
     keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
 
     await bot.send_message(chat_id=chat_id, text=custom_text, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -153,14 +156,20 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_sessions.pop(user_id, None)
     elif selected == "ADD_VISITOR":
         context.user_data["awaiting_visitor"] = True
-        await query.message.reply_text("Please type the name of the visitor/newcomer to add:")
+        await query.message.reply_text("Please type the name of the visitor to add:")
+    elif selected == "ADD_NEWCOMER":
+        context.user_data["awaiting_newcomer"] = True
+        await query.message.reply_text("Please type the name of the newcomer to add:")
     else:
         session["selected"].append(selected)
         session["members"].remove(selected)
         context.user_data["awaiting_reason"] = selected
         await query.message.reply_text(f"Why did you miss {selected}?")
         keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
-        keyboard.append([InlineKeyboardButton("➕ Add Visitor/Newcomer", callback_data="ADD_VISITOR")])
+        keyboard.append([
+            InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR"),
+            InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")
+        ])
         keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -173,6 +182,11 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session["visitors"].append(f"Visitor - {name}")
         del context.user_data["awaiting_visitor"]
         await update.message.reply_text(f"✅ Added visitor: {name}")
+    elif context.user_data.get("awaiting_newcomer"):
+        name = update.message.text.strip()
+        session["visitors"].append(f"Newcomer - {name}")
+        del context.user_data["awaiting_newcomer"]
+        await update.message.reply_text(f"✅ Added newcomer: {name}")
     else:
         awaiting = context.user_data.get("awaiting_reason")
         if not awaiting or not session:
@@ -185,7 +199,10 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if session and session["members"]:
         keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
-        keyboard.append([InlineKeyboardButton("➕ Add Visitor/Newcomer", callback_data="ADD_VISITOR")])
+        keyboard.append([
+            InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR"),
+            InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")
+        ])
         keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
         await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
     elif session:
@@ -225,4 +242,3 @@ async def main():
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-
