@@ -1,8 +1,10 @@
 import requests
 import datetime
 import asyncio
+import re
 from pytz import timezone
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
+from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters
@@ -27,14 +29,14 @@ USER_GROUPS = {
 }
 
 USERNAMES = {
-    503493798: "@fdevosor",
+    503493798: "@familyfemales",
     222222222: "@careermales",
     333333333: "@careerfemales1",
     777777777: "@careerfemales2",
     666666666: "@careerfemales3",
     444444444: "@campusfemales",
     555555555: "@jsfemales",
-    515714808: "@Jervene17",
+    515714808: "@familymales",
 }
 
 MEMBER_LISTS = {
@@ -66,6 +68,9 @@ EXCLUSIONS = {
 user_sessions = {}
 scheduler = AsyncIOScheduler(timezone="Asia/Manila")
 progress_message = None
+
+def escape_markdown(text):
+    return re.sub(r'([_\*\[\]()~`>#+\-=|{}.!\\])', r'\\\1', text)
 
 async def send_attendance_prompt(user_id, bot: Bot, context, label):
     group = USER_GROUPS[user_id]
@@ -220,18 +225,15 @@ async def update_progress(user_id, context):
     progress["submitted"].add(user_id)
     total = len(USER_GROUPS)
     submitted = len(progress["submitted"])
-    
+
     waiting = []
     for uid in USER_GROUPS:
         if uid not in progress["submitted"]:
-            tag = USERNAMES.get(uid)
-            if tag:
-                waiting.append(tag)
-            else:
-                # Escape parentheses and other MarkdownV2-sensitive characters
-                waiting.append(f"[user](tg://user\\?id={uid})")
-    
-    text = f"✅ {submitted}/{total} submitted.\nStill waiting for: {', '.join(waiting)}"
+            mention = f"[user](tg://user?id={uid})"
+            waiting.append(mention)
+
+    text = escape_markdown(f"✅ {submitted}/{total} submitted.\nStill waiting for: {', '.join(waiting)}")
+
     await context.bot.edit_message_text(
         text=text,
         chat_id=progress["chat_id"],
