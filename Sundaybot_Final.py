@@ -230,7 +230,7 @@ async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Send private prompts
     for user_id in USER_GROUPS:
-        context.bot_data.setdefault("user_chats", {})[user_id] = user_id
+        context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
         await send_attendance_prompt(user_id, context.bot, context, label)
 
     # Reminders after 30 min
