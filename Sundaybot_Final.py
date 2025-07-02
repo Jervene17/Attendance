@@ -2,7 +2,9 @@ import requests
 import datetime
 import asyncio
 from pytz import timezone
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
+from telegram import (
+    InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
+)
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters
@@ -14,6 +16,8 @@ nest_asyncio.apply()
 
 BOT_TOKEN = '7651692145:AAGmvAfhjqJ_bhKOyTM-KN3EDGlGaqLOY6E'
 WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwR2zO90VW6LIQr8BO3Aray8VXXoKgotu90n_HVZ4yUvmLO2ZZB-6pN85yw-U8WMvIz/exec'
+
+# --- Configurable Data ---
 
 EXCLUSIONS = {
     "Predawn": {
@@ -52,24 +56,36 @@ MEMBER_LISTS = {
     "JS FEMALES": ["MCor", "Tita Merlita", "Grace", "Emeru", "Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
 }
 
-user_sessions = {}
-scheduler = AsyncIOScheduler(timezone="Asia/Manila")
-group_progress = {}
+# --- Runtime Data ---
 
-async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="Who did you miss this Predawn?"):
+user_sessions = {}
+submission_tracker = {}
+scheduler = AsyncIOScheduler(timezone="Asia/Manila")
+
+# --- Core Handlers ---
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("✅ You can start using commands like /predawn, /sunday, or /wednesday.")
+
+async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id in user_sessions:
+        user_sessions.pop(user_id)
+        await update.message.reply_text("🔁 Your attendance session has been reset.")
+    else:
+        await update.message.reply_text("ℹ️ You have no active session.")
+
+async def send_attendance_prompt(user_id, bot: Bot, context, label):
     group = USER_GROUPS.get(user_id)
     members = MEMBER_LISTS.get(group, []).copy()
-    chat_id = context.bot_data.get("user_chats", {}).get(user_id)
-
-    label = context.bot_data.setdefault("context_by_user", {}).get(user_id, custom_text.split("this ")[-1].replace("?", ""))
     excluded = EXCLUSIONS.get(label, {}).get(group, [])
     members = [m for m in members if m not in excluded]
 
-    if not members:
-        await bot.send_message(chat_id=chat_id, text="✅ No members to report for this service.")
+    chat_id = context.bot_data.get("user_chats", {}).get(user_id)
+    if not chat_id or not members:
         return
 
-    context.bot_data["context_by_user"][user_id] = label
+    context.bot_data.setdefault("context_by_user", {})[user_id] = label
 
     user_sessions[user_id] = {
         "group_tab": group,
@@ -78,45 +94,30 @@ async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="W
         "reasons": {},
         "visitors": [],
         "newcomers": [],
-        "prompt_time": datetime.datetime.now()
     }
 
     keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in members]
-    keyboard.append([InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")])
-    keyboard.append([InlineKeyboardButton("🆕 Add Newcomer", callback_data="ADD_NEWCOMER")])
+    keyboard.append([
+        InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR"),
+        InlineKeyboardButton("🆕 Add Newcomer", callback_data="ADD_NEWCOMER")
+    ])
     keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
 
-    await bot.send_message(chat_id=chat_id, text=custom_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    await bot.send_message(chat_id=chat_id, text=f"Who did you miss this {label}?", reply_markup=InlineKeyboardMarkup(keyboard))
 
-    scheduler.add_job(
-        lambda: asyncio.create_task(
-            check_for_response_timeout(user_id, group, bot, context)
-        ),
-        trigger='date',
-        run_date=datetime.datetime.now() + datetime.timedelta(hours=1)
-    )
+    submission_tracker.setdefault(label, set())
+    await update_submission_progress(context, label)
 
-async def check_for_response_timeout(user_id, group, bot: Bot, context):
-    if user_id in user_sessions:
-        await bot.send_message(chat_id=context.bot_data.get("user_chats", {}).get(user_id), text=f"⏰ Time's up. Attendance not submitted.")
-        user_sessions.pop(user_id, None)
+async def update_submission_progress(context, label):
+    total = len(USER_GROUPS)
+    submitted = len(submission_tracker[label])
+    pending = [f"User {uid}" for uid in USER_GROUPS if uid not in submission_tracker[label]]
+    message = f"✅ {submitted}/{total} submitted.\nStill waiting for: {', '.join(pending)}"
+    group_chat_id = context.bot_data.get("progress_message_chat")
+    message_id = context.bot_data.get("progress_message_id")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    group = USER_GROUPS.get(user_id)
-    if not group:
-        await update.message.reply_text("❌ You are not assigned to a group.")
-        return
-    context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
-    await send_attendance_prompt(user_id, context.bot, context)
-
-async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id in user_sessions:
-        user_sessions.pop(user_id)
-        await update.message.reply_text("🔁 Your attendance session has been reset. You can now send the command again.")
-    else:
-        await update.message.reply_text("ℹ️ You have no active session to reset.")
+    if group_chat_id and message_id:
+        await context.bot.edit_message_text(chat_id=group_chat_id, message_id=message_id, text=message)
 
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -124,96 +125,119 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     session = user_sessions.get(user_id)
     if not session:
-        await query.edit_message_text("Session expired. Send /start again.")
+        await query.edit_message_text("Session expired. Send /restart_attendance.")
         return
 
     selected = query.data
     if selected == "ALL ACCOUNTED":
-        label = context.bot_data.get("context_by_user", {}).get(user_id, "Predawn")
-        absentees = [{"name": name, "reason": session["reasons"].get(name, "")} for name in session["selected"]]
-        absentees += [{"name": v, "reason": "VISITOR"} for v in session["visitors"]]
-        absentees += [{"name": n, "reason": "NEWCOMER"} for n in session["newcomers"]]
-        data = {
-            "group": session["group_tab"],
-            "date": datetime.datetime.now().strftime("%Y-%m-%d"),
-            "label": label,
-            "absentees": absentees or [{"name": "ALL ACCOUNTED", "reason": ""}]
-        }
-        try:
-            response = requests.post(WEBHOOK_URL, json=data)
-            await query.edit_message_text("✅ Attendance submitted.\n" + (response.text if response.ok else f"❌ Failed ({response.status_code})"))
-        except Exception as e:
-            await query.edit_message_text(f"❌ Error submitting: {e}")
-        user_sessions.pop(user_id, None)
+        await finalize_attendance_submission(user_id, context, query)
     elif selected == "ADD_VISITOR":
         context.user_data["awaiting_visitor"] = True
-        await query.message.reply_text("Please type the name of the visitor:")
+        await query.message.reply_text("Type visitor's name:")
     elif selected == "ADD_NEWCOMER":
         context.user_data["awaiting_newcomer"] = True
-        await query.message.reply_text("Please type the name of the newcomer:")
+        await query.message.reply_text("Type newcomer's name:")
     else:
         session["selected"].append(selected)
         session["members"].remove(selected)
         context.user_data["awaiting_reason"] = selected
         await query.message.reply_text(f"Why did you miss {selected}?")
-        await update_keyboard(query, session)
 
-async def update_keyboard(query, session):
-    keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
-    keyboard.append([InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")])
-    keyboard.append([InlineKeyboardButton("🆕 Add Newcomer", callback_data="ADD_NEWCOMER")])
-    keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
-    await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+        keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
+        keyboard.append([
+            InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR"),
+            InlineKeyboardButton("🆕 Add Newcomer", callback_data="ADD_NEWCOMER")
+        ])
+        keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     session = user_sessions.get(user_id)
+    if not session:
+        await update.message.reply_text("Please start with /restart_attendance.")
+        return
 
     if context.user_data.get("awaiting_visitor"):
-        name = update.message.text.strip()
-        session["visitors"].append(f"Visitor - {name}")
+        session["visitors"].append(update.message.text.strip())
         del context.user_data["awaiting_visitor"]
-        await update.message.reply_text(f"✅ Added visitor: {name}")
+        await update.message.reply_text("✅ Visitor added.")
     elif context.user_data.get("awaiting_newcomer"):
-        name = update.message.text.strip()
-        session["newcomers"].append(f"Newcomer - {name}")
+        session["newcomers"].append(update.message.text.strip())
         del context.user_data["awaiting_newcomer"]
-        await update.message.reply_text(f"✅ Added newcomer: {name}")
-    else:
-        awaiting = context.user_data.get("awaiting_reason")
-        if not awaiting or not session:
-            await update.message.reply_text("Please start with /start.")
-            return
-        session["reasons"][awaiting] = update.message.text.strip()
-        del context.user_data["awaiting_reason"]
-        await update.message.reply_text(f"📌 Reason recorded for {awaiting}")
+        await update.message.reply_text("✅ Newcomer added.")
+    elif context.user_data.get("awaiting_reason"):
+        name = context.user_data.pop("awaiting_reason")
+        session["reasons"][name] = update.message.text.strip()
+        await update.message.reply_text(f"Reason recorded for {name} ✅")
 
     if session["members"]:
         keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
-        keyboard.append([InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")])
-        keyboard.append([InlineKeyboardButton("🆕 Add Newcomer", callback_data="ADD_NEWCOMER")])
+        keyboard.append([
+            InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR"),
+            InlineKeyboardButton("🆕 Add Newcomer", callback_data="ADD_NEWCOMER")
+        ])
         keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
         await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
+        await update.message.reply_text("✅ Everyone accounted. Submit when ready.")
 
-async def broadcast_attendance(context: ContextTypes.DEFAULT_TYPE, label: str):
-    context.bot_data["context_by_user"] = {}
+async def finalize_attendance_submission(user_id, context, query):
+    session = user_sessions[user_id]
+    label = context.bot_data.get("context_by_user", {}).get(user_id, "Predawn")
+    data = {
+        "group": session["group_tab"],
+        "date": datetime.datetime.now().strftime("%Y-%m-%d"),
+        "label": label,
+        "absentees": [
+            {"name": name, "reason": session["reasons"].get(name, "")}
+            for name in session["selected"]
+        ] + [{"name": f"Visitor - {v}", "reason": "VISITOR"} for v in session["visitors"]] +
+            [{"name": f"Newcomer - {n}", "reason": "NEWCOMER"} for n in session["newcomers"]]
+        or [{"name": "ALL ACCOUNTED", "reason": ""}]
+    }
+    try:
+        requests.post(WEBHOOK_URL, json=data)
+        await query.edit_message_text("✅ Attendance submitted.")
+    except Exception as e:
+        await query.edit_message_text(f"❌ Error submitting: {e}")
+
+    user_sessions.pop(user_id, None)
+    submission_tracker[label].add(user_id)
+    await update_submission_progress(context, label)
+
+# --- Command Triggers ---
+
+async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE, label):
+    # Start tracking
+    submission_tracker[label] = set()
+
+    # Post group progress message
+    sent = await update.message.reply_text(f"📢 {label} attendance in progress...")
+    context.bot_data["progress_message_chat"] = sent.chat_id
+    context.bot_data["progress_message_id"] = sent.message_id
+
+    # Send private prompts
     for user_id in USER_GROUPS:
-        context.bot_data.setdefault("user_chats", {}).setdefault(user_id, user_id)
-        await send_attendance_prompt(user_id, context.bot, context, custom_text=f"Who did you miss this {label}?")
+        context.bot_data.setdefault("user_chats", {})[user_id] = user_id
+        await send_attendance_prompt(user_id, context.bot, context, label)
+
+    # Reminders after 30 min
+    scheduler.add_job(
+        lambda: asyncio.create_task(update_submission_progress(context, label)),
+        'date', run_date=datetime.datetime.now() + datetime.timedelta(minutes=30)
+    )
 
 async def predawn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await broadcast_attendance(context, "Predawn")
-    await update.message.reply_text("📢 Predawn attendance started.")
+    await broadcast_attendance(update, context, "Predawn")
 
 async def sunday_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await broadcast_attendance(context, "Sunday")
-    await update.message.reply_text("📢 Sunday attendance started.")
+    await broadcast_attendance(update, context, "Sunday")
 
 async def wednesday_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await broadcast_attendance(context, "Wednesday")
-    await update.message.reply_text("📢 Wednesday attendance started.")
+    await broadcast_attendance(update, context, "Wednesday")
+
+# --- App Entry Point ---
 
 async def main():
     application = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -229,4 +253,18 @@ async def main():
     await application.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import sys
+    if sys.platform.startswith('win'):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import nest_asyncio
+            nest_asyncio.apply()
+            loop.create_task(main())
+        else:
+            loop.run_until_complete(main())
+    except RuntimeError:
+        asyncio.run(main())
+
