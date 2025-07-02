@@ -2,7 +2,7 @@ import requests
 import datetime
 import asyncio
 from pytz import timezone
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update, Message
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters
@@ -41,11 +41,6 @@ USER_GROUPS = {
     515714808: "FAMILY MALES",
 }
 
-USERNAMES = {
-    503493798: "@fdevosor",
-    515714808: "@Jervene17",
-}
-
 MEMBER_LISTS = {
     "FAMILY FEMALES": ["Fatima", "Vangie", "Hannah", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa"],
     "FAMILY MALES": ["Dcn Ian", "M Jervene", "Jessie", "Fernan", "Almen", "Dcn Probo", "Mjhay"],
@@ -57,26 +52,17 @@ MEMBER_LISTS = {
     "JS FEMALES": ["MCor", "Tita Merlita", "Grace", "Emeru", "Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
 }
 
-FAILOVER_CHAIN = {
-    "FAMILY FEMALES": [503493798, 515714808],
-    "FAMILY MALES": [515714808, 503493798],
-    "CAREER MALES": [222222222, 515714808],
-    "CAMPUS MALES": [666666666, 515714808],
-    "CAREER FEMALES 1": [333333333, 515714808],
-    "CAREER FEMALES 2": [101010101, 515714808],
-    "CAREER FEMALES 3": [999999999, 515714808],
-    "CAMPUS FEMALES": [444444444, 515714808],
-    "JS FEMALES": [555555555, 515714808],
-}
-
 user_sessions = {}
-submission_progress = {
-    "group_message_id": None,
-    "chat_id": None,
-    "label": None,
-    "total": 0,
-    "submitted": set()
-}
+scheduler = AsyncIOScheduler(timezone="Asia/Manila")
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    group = USER_GROUPS.get(user_id)
+    if not group:
+        await update.message.reply_text("❌ You are not assigned to a group.")
+        return
+    context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
+    await send_attendance_prompt(user_id, context.bot, context)
 
 async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="Who did you miss this Predawn?"):
     group = USER_GROUPS.get(user_id)
@@ -98,31 +84,28 @@ async def send_attendance_prompt(user_id, bot: Bot, context=None, custom_text="W
         "members": members.copy(),
         "selected": [],
         "reasons": {},
+        "visitors": [],
         "prompt_time": datetime.datetime.now()
     }
 
     keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in members]
+    keyboard.append([InlineKeyboardButton("➕ Add Visitor/Newcomer", callback_data="ADD_VISITOR")])
     keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
 
     await bot.send_message(chat_id=chat_id, text=custom_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-    async def delayed_fallback():
-        await asyncio.sleep(3600)  # 1 hour
-        if user_id in user_sessions:
-            await check_for_response_timeout(user_id, group, bot, context)
-
-    asyncio.create_task(delayed_fallback())
+    scheduler.add_job(
+        lambda: asyncio.create_task(
+            check_for_response_timeout(user_id, group, bot, context)
+        ),
+        trigger='date',
+        run_date=datetime.datetime.now() + datetime.timedelta(hours=1)
+    )
 
 async def check_for_response_timeout(user_id, group, bot: Bot, context):
     if user_id in user_sessions:
-        chain = FAILOVER_CHAIN.get(group, [])
-        if user_id in chain:
-            idx = chain.index(user_id)
-            if idx + 1 < len(chain):
-                next_user = chain[idx + 1]
-                chat_id = context.bot_data.get("user_chats", {}).get(next_user)
-                if chat_id:
-                    await send_attendance_prompt(next_user, bot, context, custom_text=f"{group} checker didn't respond. Please handle attendance.")
+        await bot.send_message(chat_id=context.bot_data.get("user_chats", {}).get(user_id), text=f"⏰ Time's up. Attendance not submitted.")
+        user_sessions.pop(user_id, None)
 
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -141,6 +124,11 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             {"name": name, "reason": session["reasons"].get(name, "")}
             for name in session["selected"]
         ] if session["selected"] else [{"name": "ALL ACCOUNTED", "reason": ""}]
+
+        # Include visitor entries
+        for visitor in session.get("visitors", []):
+            absentees.append({"name": visitor, "reason": "VISITOR"})
+
         data = {
             "group": session["group_tab"],
             "date": date_today,
@@ -155,101 +143,53 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text(f"❌ Failed to submit: {response.status_code}")
         except Exception as e:
             await query.edit_message_text(f"❌ Error submitting: {e}")
-
         user_sessions.pop(user_id, None)
-
-        # Update group progress
-        submission_progress["submitted"].add(user_id)
-        await update_group_progress(context)
+    elif selected == "ADD_VISITOR":
+        context.user_data["awaiting_visitor"] = True
+        await query.message.reply_text("Please type the name of the visitor/newcomer to add:")
     else:
         session["selected"].append(selected)
         session["members"].remove(selected)
         context.user_data["awaiting_reason"] = selected
         await query.message.reply_text(f"Why did you miss {selected}?")
         keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
+        keyboard.append([InlineKeyboardButton("➕ Add Visitor/Newcomer", callback_data="ADD_VISITOR")])
         keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     session = user_sessions.get(user_id)
-    awaiting = context.user_data.get("awaiting_reason")
-    if not awaiting or not session:
-        await update.message.reply_text("Please start with /start.")
-        return
 
-    reason = update.message.text.strip()
-    session["reasons"][awaiting] = reason
-    del context.user_data["awaiting_reason"]
-    await update.message.reply_text(f"Recorded reason for {awaiting} ✅")
+    if context.user_data.get("awaiting_visitor"):
+        name = update.message.text.strip()
+        session["visitors"].append(f"Visitor - {name}")
+        del context.user_data["awaiting_visitor"]
+        await update.message.reply_text(f"✅ Added visitor: {name}")
+    else:
+        awaiting = context.user_data.get("awaiting_reason")
+        if not awaiting or not session:
+            await update.message.reply_text("Please start with /start.")
+            return
+        reason = update.message.text.strip()
+        session["reasons"][awaiting] = reason
+        del context.user_data["awaiting_reason"]
+        await update.message.reply_text(f"Recorded reason for {awaiting} ✅")
 
-    if session["members"]:
+    if session and session["members"]:
         keyboard = [[InlineKeyboardButton(name, callback_data=name)] for name in session["members"]]
+        keyboard.append([InlineKeyboardButton("➕ Add Visitor/Newcomer", callback_data="ADD_VISITOR")])
         keyboard.append([InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL ACCOUNTED")])
         await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
+    elif session:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
-
-async def update_group_progress(context: ContextTypes.DEFAULT_TYPE):
-    if submission_progress["group_message_id"] and submission_progress["chat_id"]:
-        submitted = len(submission_progress["submitted"])
-        total = submission_progress["total"]
-        remaining = [USERNAMES.get(uid, f"User {uid}") for uid in submission_progress["all_users"] if uid not in submission_progress["submitted"]]
-        mention_str = ", ".join(remaining)
-        text = f"✅ {submitted}/{total} submitted."
-        if remaining:
-            text += f"\nStill waiting for: {mention_str}"
-        else:
-            text += "\n🎉 All submitted."
-        try:
-            await context.bot.edit_message_text(chat_id=submission_progress["chat_id"], message_id=submission_progress["group_message_id"], text=text)
-        except:
-            pass
-
-async def start_submission(update: Update, context: ContextTypes.DEFAULT_TYPE, label):
-    group_chat_id = update.effective_chat.id
-    all_users = list(USER_GROUPS.keys())
-    submission_progress.update({
-        "group_message_id": None,
-        "chat_id": group_chat_id,
-        "label": label,
-        "submitted": set(),
-        "total": len(all_users),
-        "all_users": all_users
-    })
-    msg = await context.bot.send_message(chat_id=group_chat_id, text=f"📝 Logging for {label} started. 0/{len(all_users)} submitted.")
-    submission_progress["group_message_id"] = msg.message_id
-    for user_id in all_users:
-        chat_id = context.bot_data.get("user_chats", {}).get(user_id)
-        if chat_id:
-            await send_attendance_prompt(user_id, context.bot, context, custom_text=f"Who did you miss this {label}?")
-
-async def predawn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await start_submission(update, context, "Predawn")
-
-async def wednesday_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await start_submission(update, context, "Wednesday")
-
-async def sunday_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await start_submission(update, context, "Sunday")
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    group = USER_GROUPS.get(user_id)
-    if not group:
-        await update.message.reply_text("❌ You are not assigned to a group.")
-        return
-    context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
-    await update.message.reply_text("✅ You are now registered with the bot.")
 
 async def main():
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("predawn", predawn_command))
-    application.add_handler(CommandHandler("wednesday", wednesday_command))
-    application.add_handler(CommandHandler("sunday", sunday_command))
     application.add_handler(CallbackQueryHandler(handle_button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reason))
+    scheduler.start()
     print("🤖 Bot is running...")
     await application.run_polling()
 
