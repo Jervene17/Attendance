@@ -90,9 +90,14 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
     await update.message.reply_text("Welcome! Please wait for the attendance prompt from your group admin.")
 
-async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+aasync def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     session = user_sessions.get(user_id)
+
+    if not session:
+        await update.message.reply_text("Session expired. Send /start again.")
+        return
+
     if context.user_data.get("awaiting_visitor"):
         name = update.message.text.strip()
         session["visitors"].append(f"Visitor - {name}")
@@ -105,9 +110,21 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Added newcomer: {name}")
     elif context.user_data.get("awaiting_reason"):
         name = context.user_data["awaiting_reason"]
-        session["reasons"][name] = update.message.text.strip()
+        reason = update.message.text.strip()
+        session["reasons"][name] = reason
         del context.user_data["awaiting_reason"]
         await update.message.reply_text(f"✅ Reason recorded for {name}.")
+
+    # 🔁 Prompt again if there are remaining members to mark
+    if session["members"]:
+        keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
+        keyboard += [[InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")],
+                     [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
+                     [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
+        await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
+
 
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
