@@ -224,7 +224,7 @@ async def test_sunday(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_attendance_prompt(user_id, context.bot, context, label="Sunday Service", custom_text="🧪 Test: Who did you miss this Sunday Service?")
 async def test_scheduler_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳ Manually triggering broadcast_with_label(Predawn)...")
-    broadcast_with_label(context.bot, "Predawn", context.bot_data)
+    broadcast_with_label(context.bot, "Predawn", context)  # Pass full context
 # === 🚀 Launch bot
 async def main():
     application = ApplicationBuilder().token(BOT_TOKEN).build()
