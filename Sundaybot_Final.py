@@ -211,6 +211,8 @@ async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYP
             continue
         await send_attendance_prompt(user_id, context.bot, context, label)
 
+from telegram.constants import ParseMode  # add this at the top
+
 async def update_progress(user_id, context):
     progress = context.bot_data.get("progress")
     if not progress:
@@ -218,14 +220,25 @@ async def update_progress(user_id, context):
     progress["submitted"].add(user_id)
     total = len(USER_GROUPS)
     submitted = len(progress["submitted"])
-    waiting = [USERNAMES.get(uid, f"[user](tg://user?id={uid})") for uid in USER_GROUPS if uid not in progress["submitted"]]
+    
+    waiting = []
+    for uid in USER_GROUPS:
+        if uid not in progress["submitted"]:
+            tag = USERNAMES.get(uid)
+            if tag:
+                waiting.append(tag)
+            else:
+                # Escape parentheses and other MarkdownV2-sensitive characters
+                waiting.append(f"[user](tg://user\\?id={uid})")
+    
     text = f"✅ {submitted}/{total} submitted.\nStill waiting for: {', '.join(waiting)}"
     await context.bot.edit_message_text(
         text=text,
         chat_id=progress["chat_id"],
         message_id=progress["message_id"],
-        parse_mode="Markdown"
+        parse_mode=ParseMode.MARKDOWN_V2
     )
+
 
 async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
