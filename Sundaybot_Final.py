@@ -33,7 +33,6 @@ FAILOVER_CHAIN = {
     "FAMILY FEMALES": [503493798, 515714808],
     "FAMILY MALES": [515714808, 503493798],
     "CAREER MALES": [222222222, 515714808],
-    "CAMPUS MALES": [666666666, 515714808],
     "CAREER FEMALES 1": [333333333, 515714808],
     "CAREER FEMALES 2": [101010101, 515714808],
     "CAREER FEMALES 3": [999999999, 515714808],
@@ -45,13 +44,12 @@ FAILOVER_CHAIN = {
 MEMBER_LISTS = {
     "FAMILY FEMALES": ["Fatima", "Vangie", "Hannah", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa"],
     "FAMILY MALES": ["Dcn Ian", "M Jervene", "Jessie", "Fernan", "Almen", "Dcn Probo", "Mjhay"],
-    "CAREER MALES": ["Jabs", "Xander", "Franz", "Daniel", "Jiboy", "Venancio", "Iven"],
-    "CAMPUS MALES": ["Nikko"],
+    "CAREER MALES": ["Jabs", "Xander", "Franz", "Daniel", "Jiboy", "Venancio", "Iven","Taiki"],
     "CAREER FEMALES 1": ["Shaja", "Grace", "Daryl", "Clarice", "Mia", "Aliza", "Anica"],
     "CAREER FEMALES 2": ["Mel", "Andrea", "Angel", "Ina", "M Rose", "Vicky", "Donna"],
-    "CAREER FEMALES 3": ["PP Bam", "Zhandra", "Trina", "Dr Kristine"],
-    "CAMPUS FEMALES": ["Divine", "Marinell", "Glenda"],
-    "JS FEMALES": ["MCor", "Tita Merlita", "Grace", "Emeru"],
+    "CAREER FEMALES 3": ["D Rue","PP Bam", "Zhandra", "Trina", "Dr Kristine","Riza","Saeyong","Mirasol"],
+    "CAMPUS FEMALES": ["Divine", "Marinell"],
+    "JS FEMALES": ["MCor", "Tita Merlita", "Grace", "Emeru","Randrew Dela Cruz","John Carlo Lucero","Cherry Ann","Rhea Cho","Gemma","Yolly","Weng"],
 }
 
 user_sessions = {}
