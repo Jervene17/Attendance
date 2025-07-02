@@ -144,19 +144,33 @@ async def submit_attendance(user_id, context, query):
         await query.edit_message_text("Session expired.")
         return
 
+    selected_absentees = [{"name": name, "reason": session["reasons"].get(name, "")} for name in session["selected"]]
+    visitor_absentees = [{"name": v, "reason": "VISITOR"} for v in session.get("visitors", [])]
+    newcomer_absentees = [{"name": n, "reason": "NEWCOMER"} for n in session.get("newcomers", [])]
+
+    all_absentees = selected_absentees + visitor_absentees + newcomer_absentees
+
+    if not all_absentees:
+        all_absentees = [{"name": "ALL ACCOUNTED", "reason": ""}]
+
     data = {
-        "group": session["group"],
+        "group": session["group_tab"],  # make sure key is correct
         "label": session["label"],
         "date": datetime.datetime.now().strftime("%Y-%m-%d"),
-        "absentees": [{"name": name, "reason": session["reasons"].get(name, "")} for name in session["selected"]] +
-             [{"name": v, "reason": "VISITOR"} for v in session["visitors"]] +
-             [{"name": n, "reason": "NEWCOMER"} for n in session["newcomers"]] or [{"name": "ALL ACCOUNTED", "reason": ""}]
+        "absentees": all_absentees
     }
+
     try:
         requests.post(WEBHOOK_URL, json=data)
         await query.edit_message_text("✅ Attendance submitted.")
     except Exception as e:
         await query.edit_message_text(f"❌ Submission failed: {e}")
+
+    # ✅ Optional: Update progress message if you're using live tracking
+    submitted = context.bot_data.setdefault("submitted_users", [])
+    if user_id not in submitted:
+        submitted.append(user_id)
+    await update_progress_message(context)
 
 async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE, label: str):
     submitted_users = set()
