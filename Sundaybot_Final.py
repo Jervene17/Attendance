@@ -24,7 +24,7 @@ USER_GROUPS = {
     "777777777": "CAREER FEMALES 2",
     "666666666": "CAREER FEMALES 3",
     "444444444": "CAMPUS FEMALES",
-    "555555555": "JS FEMALES",
+    "555555555": "JS",
     "515714808": "FAMILY MALES",
 }
 
@@ -47,7 +47,7 @@ MEMBER_LISTS = {
     "CAREER FEMALES 2": ["Mel", "Andrea", "Angel", "Inia", "M Rose", "Vicky", "Donna"],
     "CAREER FEMALES 3": ["D Rue", "PP Bam", "Zhandra", "Trina", "Dr Kristine", "Riza", "Saeyong", "Mirasol", "Joan"],
     "CAMPUS FEMALES": ["Divine", "Marinell"],
-    "JS FEMALES": ["MCor", "Tita Merlita", "Grace", "Emeru", "Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
+    "JS": ["MCor", "Tita Merlita", "Grace", "Emeru", "Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
 }
 
 EXCLUSIONS = {
@@ -55,13 +55,13 @@ EXCLUSIONS = {
         "CAREER MALES": ["Taiki"],
         "CAREER FEMALES 2": ["Donna", "Vicky"],
         "CAREER FEMALES 3": ["Riza", "Saeyong"],
-        "JS FEMALES": ["Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
+        "JS": ["Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
     },
     "Wednesday": {
         "CAREER MALES": ["Taiki"],
         "CAREER FEMALES 2": ["Donna", "Vicky"],
         "CAREER FEMALES 3": ["Riza"],
-        "JS FEMALES": ["Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
+        "JS": ["Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
     }
 }
 
