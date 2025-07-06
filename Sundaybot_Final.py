@@ -2,6 +2,8 @@ import requests
 import datetime
 import asyncio
 import re
+import json
+import os
 from pytz import timezone
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
 from telegram.constants import ParseMode
@@ -17,6 +19,20 @@ nest_asyncio.apply()
 BOT_TOKEN = '7651692145:AAGmvAfhjqJ_bhKOyTM-KN3EDGlGaqLOY6E'
 WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwR2zO90VW6LIQr8BO3Aray8VXXoKgotu90n_HVZ4yUvmLO2ZZB-6pN85yw-U8WMvIz/exec'
 
+# === Persistent Storage ===
+USER_CHATS_FILE = "user_chats.json"
+
+def load_user_chats():
+    if os.path.exists(USER_CHATS_FILE):
+        with open(USER_CHATS_FILE, "r") as f:
+            return {int(k): v for k, v in json.load(f).items()}
+    return {}
+
+def save_user_chats(data):
+    with open(USER_CHATS_FILE, "w") as f:
+        json.dump(data, f)
+
+# === Static Config ===
 USER_GROUPS = {
     503493798: "FAMILY FEMALES",
     222222222: "CAREER MALES",
@@ -67,7 +83,6 @@ EXCLUSIONS = {
 
 user_sessions = {}
 scheduler = AsyncIOScheduler(timezone="Asia/Manila")
-progress_message = None
 
 def escape_markdown(text):
     return re.sub(r'([_\*\[\]()~`>#+\-=|{}.!\\])', r'\\\1', text)
@@ -77,7 +92,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
     members = MEMBER_LISTS[group][:]
     excluded = EXCLUSIONS.get(label, {}).get(group, [])
     members = [m for m in members if m not in excluded]
-    
+
     user_sessions[user_id] = {
         "group": group,
         "label": label,
@@ -89,6 +104,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
 
     chat_id = context.bot_data.get("user_chats", {}).get(user_id)
     if not chat_id:
+        print(f"[SKIP] No private chat for user {user_id}")
         return
 
     keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in members]
@@ -102,9 +118,14 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         await update.message.reply_text("❌ Please use /start in a private chat with the bot.")
         return
+
     user_id = update.effective_user.id
-    context.bot_data.setdefault("user_chats", {})[user_id] = update.effective_chat.id
-    await update.message.reply_text("Welcome! Please wait for the attendance prompt from your group admin.")
+    chat_id = update.effective_chat.id
+
+    context.bot_data.setdefault("user_chats", {})[user_id] = chat_id
+    save_user_chats(context.bot_data["user_chats"])
+
+    await update.message.reply_text("✅ You're now registered for attendance prompts.")
 
 async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -131,7 +152,6 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del context.user_data["awaiting_reason"]
         await update.message.reply_text(f"✅ Reason recorded for {name}.")
 
-    # 🔁 Prompt again if there are remaining members to mark
     if session["members"]:
         keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
         keyboard += [[InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")],
@@ -140,7 +160,6 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
-
 
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -180,14 +199,13 @@ async def submit_attendance(user_id, context, query):
     selected_absentees = [{"name": name, "reason": session["reasons"].get(name, "")} for name in session["selected"]]
     visitor_absentees = [{"name": v, "reason": "VISITOR"} for v in session.get("visitors", [])]
     newcomer_absentees = [{"name": n, "reason": "NEWCOMER"} for n in session.get("newcomers", [])]
-
     all_absentees = selected_absentees + visitor_absentees + newcomer_absentees
 
     if not all_absentees:
         all_absentees = [{"name": "ALL ACCOUNTED", "reason": ""}]
 
     data = {
-        "group": session["group"],  # ✅ fixed
+        "group": session["group"],
         "label": session["label"],
         "date": datetime.datetime.now().strftime("%Y-%m-%d"),
         "absentees": all_absentees
@@ -199,9 +217,7 @@ async def submit_attendance(user_id, context, query):
     except Exception as e:
         await query.edit_message_text(f"❌ Submission failed: {e}")
 
-    # ✅ correct function for progress update
     await update_progress(user_id, context)
-
 
 async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE, label: str):
     submitted_users = set()
@@ -215,8 +231,6 @@ async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYP
         if user_id not in context.bot_data.get("user_chats", {}):
             continue
         await send_attendance_prompt(user_id, context.bot, context, label)
-
-from telegram.constants import ParseMode  # add this at the top
 
 async def update_progress(user_id, context):
     progress = context.bot_data.get("progress")
@@ -236,7 +250,6 @@ async def update_progress(user_id, context):
         parse_mode=ParseMode.MARKDOWN_V2
     )
 
-
 async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id in user_sessions:
@@ -251,6 +264,7 @@ async def wednesday(update, context): await broadcast_attendance(update, context
 
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.bot_data["user_chats"] = load_user_chats()
     app.add_handler(CommandHandler("start", handle_start))
     app.add_handler(CommandHandler("restart_attendance", restart_attendance))
     app.add_handler(CommandHandler("predawn", predawn))
