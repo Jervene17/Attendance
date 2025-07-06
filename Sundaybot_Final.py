@@ -40,7 +40,7 @@ USER_GROUPS = {
     777777777: "CAREER FEMALES 2",
     666666666: "CAREER FEMALES 3",
     444444444: "CAMPUS FEMALES",
-    759118645: "JS",
+    544095264: "JS",
     515714808: "FAMILY MALES",
 }
 
@@ -51,7 +51,7 @@ USER_NAMES = {
     777777777: "Mel",
     666666666: "D Rue",
     444444444: "Divine",
-    555555555: "MCor",
+    544095264: "MCor",
     515714808: "Jervene",
 }
 
