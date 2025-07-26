@@ -89,10 +89,12 @@ def escape_markdown(text):
 async def send_attendance_prompt(user_id, bot: Bot, context, label):
     group = USER_GROUPS[user_id]
     members = MEMBER_LISTS[group][:]
-    excluded = EXCLUSIONS.get(label, {}).get(group, [])
-    members = [m for m in members if m not in excluded]
-    
-user_sessions[user_id] = {
+
+    if group != "Visitors":
+        excluded = EXCLUSIONS.get(label, {}).get(group, [])
+        members = [m for m in members if m not in excluded]
+
+    user_sessions[user_id] = {
         "group": group,
         "label": label,
         "members": members[:],
@@ -106,12 +108,22 @@ user_sessions[user_id] = {
         print(f"[SKIP] No private chat for user {user_id}")
         return
 
-    keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in members]
-    keyboard += [[InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")],
-                 [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
-                 [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
+    if group == "Visitors":
+        prompt_text = f"Who attended the {label} service?"
+    else:
+        prompt_text = f"Who did you miss this {label}?"
 
-    await bot.send_message(chat_id, text=f"Who did you miss this {label}?", reply_markup=InlineKeyboardMarkup(keyboard))
+    keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in members]
+
+    if group == "Visitors":
+        keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")]]
+
+    if group != "Visitors":
+        keyboard += [[InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")]]
+
+    keyboard += [[InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
+
+    await bot.send_message(chat_id, text=prompt_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
@@ -172,9 +184,9 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "ALL_ACCOUNTED":
         await submit_attendance(user_id, context, query)
-    elif data == "ADD_VISITOR":
+    elif data == "NOT_LISTED":
         context.user_data["awaiting_visitor"] = True
-        await query.message.reply_text("Enter visitor name:")
+        await query.message.reply_text("Enter the name of the visitor who attended:")
     elif data == "ADD_NEWCOMER":
         context.user_data["awaiting_newcomer"] = True
         await query.message.reply_text("Enter newcomer name:")
