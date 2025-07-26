@@ -80,6 +80,18 @@ EXCLUSIONS = {
         "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
     }
 }
+user_sessions = {}
+scheduler = AsyncIOScheduler(timezone="Asia/Manila")
+
+def escape_markdown(text):
+    return re.sub(r'([_\*\[\]()~>#+\-=|{}.!\\])', r'\\\1', text)
+
+async def send_attendance_prompt(user_id, bot: Bot, context, label):
+    group = USER_GROUPS[user_id]
+    members = MEMBER_LISTS[group][:]
+    excluded = EXCLUSIONS.get(label, {}).get(group, [])
+    members = [m for m in members if m not in excluded]
+    
 user_sessions[user_id] = {
         "group": group,
         "label": label,
