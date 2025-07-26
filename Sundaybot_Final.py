@@ -17,7 +17,7 @@ import nest_asyncio
 nest_asyncio.apply()
 
 BOT_TOKEN = '7651692145:AAGmvAfhjqJ_bhKOyTM-KN3EDGlGaqLOY6E'
-WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwR2zO90VW6LIQr8BO3Aray8VXXoKgotu90n_HVZ4yUvmLO2ZZB-6pN85yw-U8WMvIz/exec'
+WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxbOAoL3sgcNdHdXdCpiOTolC_5exn0PQDHmeV9zHmHGdtscMY9-SKk0MknzxaD_ufV/exec'
 
 # === Persistent Storage ===
 USER_CHATS_FILE = "user_chats.json"
