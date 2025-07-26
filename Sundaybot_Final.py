@@ -254,15 +254,6 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.message.reply_text("Please specify. (Put N/A if no additional explanation needed)")
 
-        # Ask about next absent member
-        if session["members"]:
-            keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
-            keyboard += [
-                [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
-                [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]
-            ]
-            await query.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
-
     elif data in session["members"]:
         session["selected"].append(data)
         session["members"].remove(data)
