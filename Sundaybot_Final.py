@@ -202,16 +202,20 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["awaiting_newcomer"] = True
         await query.message.reply_text("Enter newcomer name:")
     else:
-        session["selected"].append(data)
-        session["members"].remove(data)
+    session["selected"].append(data)
+    session["members"].remove(data)
+
+    if session["group"] != "Visitors":
         context.user_data["awaiting_reason"] = data
         await query.message.reply_text(f"Why did you miss {data}?")
+    else:
+        # No reason needed, refresh keyboard immediately
         keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
-        keyboard += [[InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")],
-                     [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
+        keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")],
+                      [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
                      [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
-
+       
 async def submit_attendance(user_id, context, query):
     session = user_sessions.pop(user_id, None)
     if not session:
