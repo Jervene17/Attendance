@@ -211,6 +211,12 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "ALL_ACCOUNTED":
         await submit_attendance(user_id, context, query)
 
+        # ✅ Track and update group progress
+        if "progress" in context.bot_data:
+            context.bot_data["progress"]["submitted"].add(user_id)
+            await update_progress_message(context)
+        return  # Exit after submitting
+
     elif data == "NOT_LISTED":
         context.user_data["awaiting_visitor"] = True
         await query.message.reply_text("Enter the name of the visitor who attended:")
@@ -220,7 +226,6 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("Enter newcomer name:")
 
     else:
-        # This part was incorrectly indented before
         if data in session["members"]:
             session["selected"].append(data)
             session["members"].remove(data)
@@ -229,7 +234,6 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["awaiting_reason"] = data
             await query.message.reply_text(f"Why did you miss {data}?")
         else:
-            # No reason needed, refresh the keyboard immediately
             keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
             keyboard += [
                 [InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")],
@@ -237,6 +241,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]
             ]
             await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
 
 async def submit_attendance(user_id, context, query):
     session = user_sessions.pop(user_id, None)
@@ -263,20 +268,22 @@ async def submit_attendance(user_id, context, query):
         requests.post(WEBHOOK_URL, json=data)
         await query.edit_message_text("✅ Attendance submitted.")
 
-        # ✅ Send Sunday absentees to specific user
+        # ✅ Send Sunday absentees to specific users
         from datetime import datetime
-        today = datetime.now().strftime("%A")  # e.g., "Sunday"
+        today = datetime.now().strftime("%A")
         absentees = [name for name in session["selected"] if name in session["reasons"]]
 
         if today == "Sunday" and absentees:
-            target_user_id = 439340490  # Replace with actual Telegram user ID
             absentees_text = "\n".join([f"• {name}: {session['reasons'][name]}" for name in absentees])
             message = f"📋 Sunday Absentees:\n{absentees_text}"
 
-            try:
-                await context.bot.send_message(chat_id=target_user_id, text=message)
-            except Exception as e:
-                print(f"❌ Failed to send absentees: {e}")
+            target_user_ids = [439340490, 515714808]  # Replace with actual Telegram IDs
+
+            for uid in target_user_ids:
+                try:
+                    await context.bot.send_message(chat_id=uid, text=message)
+                except Exception as e:
+                    print(f"❌ Failed to send absentees to {uid}: {e}")
 
     except Exception as e:
         await query.edit_message_text(f"❌ Submission failed: {e}")
@@ -325,6 +332,30 @@ async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def predawn(update, context): await broadcast_attendance(update, context, "Predawn")
 async def sunday(update, context): await broadcast_attendance(update, context, "Sunday")
 async def wednesday(update, context): await broadcast_attendance(update, context, "Wednesday")
+
+async def update_progress_message(context: ContextTypes.DEFAULT_TYPE):
+    progress_data = context.bot_data.get("progress")
+    if not progress_data:
+        return
+
+    submitted = progress_data["submitted"]
+    total = len(USER_GROUPS)
+    waiting = [str(uid) for uid in USER_GROUPS if uid not in submitted]
+
+    text = f"✅ {len(submitted)}/{total} submitted.\n"
+    if waiting:
+        text += f"Still waiting for: {', '.join(waiting)}"
+    else:
+        text += "🎉 All users have submitted."
+
+    try:
+        await context.bot.edit_message_text(
+            chat_id=progress_data["chat_id"],
+            message_id=progress_data["message_id"],
+            text=text
+        )
+    except Exception as e:
+        print("Failed to update progress message:", e)
 
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
