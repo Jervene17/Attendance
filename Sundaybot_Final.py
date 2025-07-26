@@ -59,7 +59,7 @@ USER_NAMES = {
 
 MEMBER_LISTS = {
     "FAMILY FEMALES": ["Fatima", "Vangie", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa"],
-    "FAMILY MALES": ["Dcn Ian", "M Jervene", "Jessie", "Almen", "Dcn Probo", "Mjhay"],
+    "FAMILY MALES": ["Dcn Ian", "M Jervene", "Jessie", "Almen", "Dcn Probo"],
     "CAREER MALES": ["Jabs", "Xander", "Franz", "Daniel", "Jiboy", "Venancio", "Iven"],
     "CAREER FEMALES 1": ["Shaja", "Grace", "Daryl", "Clarice", "Mia", "Aliza", "Anica"],
     "CAREER FEMALES 2": ["Mel", "Andrea", "Angel", "Inia", "M Rose", "Vicky", "Donna"],
@@ -73,11 +73,13 @@ MEMBER_LISTS = {
 EXCLUSIONS = {
     "Predawn": {
             "CAREER FEMALES 2": ["Donna", "Vicky"],
-        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
+        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
+        "JS":["Tita Merlita"]
     },
     "Wednesday": {
         "CAREER FEMALES 2": ["Donna", "Vicky"],
-        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"]
+        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
+        "JS":["Tita Merlita"]
     }
 }
 user_sessions = {}
@@ -260,6 +262,22 @@ async def submit_attendance(user_id, context, query):
     try:
         requests.post(WEBHOOK_URL, json=data)
         await query.edit_message_text("✅ Attendance submitted.")
+
+        # ✅ Send Sunday absentees to specific user
+        from datetime import datetime
+        today = datetime.now().strftime("%A")  # e.g., "Sunday"
+        absentees = [name for name in session["selected"] if name in session["reasons"]]
+
+        if today == "Sunday" and absentees:
+            target_user_id = 439340490  # Replace with actual Telegram user ID
+            absentees_text = "\n".join([f"• {name}: {session['reasons'][name]}" for name in absentees])
+            message = f"📋 Sunday Absentees:\n{absentees_text}"
+
+            try:
+                await context.bot.send_message(chat_id=target_user_id, text=message)
+            except Exception as e:
+                print(f"❌ Failed to send absentees: {e}")
+
     except Exception as e:
         await query.edit_message_text(f"❌ Submission failed: {e}")
 
