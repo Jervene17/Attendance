@@ -41,8 +41,8 @@ USER_GROUPS = {
     666666666: "CAREER FEMALES 3",
     444444444: "CAMPUS FEMALES",
     544095264: "JS",
-    888888888: "FAMILY MALES",
-    515714808: "Visitors",
+    515714808: "FAMILY MALES",
+    888888888: "Visitors",
     000000000: "HQ"
 }
 
@@ -155,7 +155,7 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = user_sessions.get(user_id)
 
     if not session:
-        await update.message.reply_text("Session expired. Send /start again.")
+        # 🔇 Ignore messages if no active session
         return
 
     if context.user_data.get("awaiting_visitor"):
@@ -179,7 +179,7 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Reason recorded for {name}.")
 
     # Now refresh the keyboard based on group
-    if session["group"] == "Visitors":
+    if session.get("group") == "Visitors":
         keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
         keyboard += [
             [InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")],
