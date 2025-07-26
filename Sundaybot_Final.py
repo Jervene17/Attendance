@@ -150,7 +150,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_user_chats(context.bot_data["user_chats"])  # ✅ This line is crucial
         await update.message.reply_text("You're now registered for attendance prompts.")
 
-aasync def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     session = user_sessions.get(user_id)
 
