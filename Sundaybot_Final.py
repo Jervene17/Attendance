@@ -161,11 +161,14 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session["visitors"].append(f"Visitor - {name}")
         del context.user_data["awaiting_visitor"]
         await update.message.reply_text(f"✅ Added visitor: {name}")
+
     elif context.user_data.get("awaiting_newcomer"):
         name = update.message.text.strip()
-        session["visitors"].append(f"Newcomer - {name}")
+        session["members"].append(name)
+        session["reasons"][name] = ""  # Leave reason blank
         del context.user_data["awaiting_newcomer"]
         await update.message.reply_text(f"✅ Added newcomer: {name}")
+
     elif context.user_data.get("awaiting_reason"):
         name = context.user_data["awaiting_reason"]
         reason = update.message.text.strip()
@@ -175,9 +178,10 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if session["members"]:
         keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
-        keyboard += [[InlineKeyboardButton("➕ Add Visitor", callback_data="ADD_VISITOR")],
-                     [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
-                     [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
+        keyboard += [
+            [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
+            [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]
+        ]
         await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
