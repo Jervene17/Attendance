@@ -279,6 +279,53 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 
+async def submit_attendance(user_id, context, query):
+    session = user_sessions.pop(user_id, None)
+    if not session:
+        await query.edit_message_text("Session expired.")
+        return
+
+    selected_absentees = [{"name": name, "reason": session["reasons"].get(name, "")} for name in session["selected"]]
+    visitor_absentees = [{"name": v, "reason": "VISITOR"} for v in session.get("visitors", [])]
+    newcomer_absentees = [{"name": n, "reason": "NEWCOMER"} for n in session.get("newcomers", [])]
+    all_absentees = selected_absentees + visitor_absentees + newcomer_absentees
+
+    if not all_absentees:
+        all_absentees = [{"name": "ALL ACCOUNTED", "reason": ""}]
+
+    data = {
+        "group": session["group"],
+        "label": session["label"],
+        "date": datetime.datetime.now().strftime("%Y-%m-%d"),
+        "absentees": all_absentees
+    }
+
+    try:
+        requests.post(WEBHOOK_URL, json=data)
+        await query.edit_message_text("✅ Attendance submitted.")
+
+        # ✅ Send Sunday absentees to specific users
+        from datetime import datetime
+        today = datetime.now().strftime("%A")
+        absentees = [name for name in session["selected"] if name in session["reasons"]]
+
+        if today == "Sunday" and absentees:
+            absentees_text = "\n".join([f"• {name}: {session['reasons'][name]}" for name in absentees])
+            message = f"📋 Sunday Absentees:\n{absentees_text}"
+
+            target_user_ids = [439340490, 515714808]  # Replace with actual Telegram IDs
+
+            for uid in target_user_ids:
+                try:
+                    await context.bot.send_message(chat_id=uid, text=message)
+                except Exception as e:
+                    print(f"❌ Failed to send absentees to {uid}: {e}")
+
+    except Exception as e:
+        await query.edit_message_text(f"❌ Submission failed: {e}")
+
+    await update_progress(user_id, context)
+
 async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE, label: str):
     submitted_users = set()
     total = len(USER_GROUPS)
