@@ -176,7 +176,16 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del context.user_data["awaiting_reason"]
         await update.message.reply_text(f"✅ Reason recorded for {name}.")
 
-    if session["members"]:
+    # Now refresh the keyboard based on group
+    if session["group"] == "Visitors":
+        keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
+        keyboard += [
+            [InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")],
+            [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
+            [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]
+        ]
+        await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
+    elif session["members"]:
         keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
         keyboard += [
             [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
