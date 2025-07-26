@@ -16,7 +16,7 @@ import nest_asyncio
 
 nest_asyncio.apply()
 
-BOT_TOKEN = '7651692145:AAGmvAfhjqJ_bhKOyTM-KN3EDGlGaqLOY6E'
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwR2zO90VW6LIQr8BO3Aray8VXXoKgotu90n_HVZ4yUvmLO2ZZB-6pN85yw-U8WMvIz/exec'
 
 # === Persistent Storage ===
