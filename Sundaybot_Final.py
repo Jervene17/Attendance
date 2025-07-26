@@ -298,7 +298,7 @@ async def wednesday(update, context): await broadcast_attendance(update, context
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.bot_data["user_chats"] = load_user_chats()
-    app.add_handler(CommandHandler("start", handle_start))
+    app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("restart_attendance", restart_attendance))
     app.add_handler(CommandHandler("predawn", predawn))
     app.add_handler(CommandHandler("sunday", sunday))
