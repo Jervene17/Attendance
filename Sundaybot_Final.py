@@ -88,19 +88,20 @@ def escape_markdown(text):
 
 async def send_attendance_prompt(user_id, bot: Bot, context, label):
     group = USER_GROUPS[user_id]
-    members = MEMBER_LISTS[group][:]
 
-if group == "Visitors" and label in ["Predawn", "Wednesday"]:
+    # Skip prompting Visitors for Predawn and Wednesday
+    if group == "Visitors" and label in ["Predawn", "Wednesday"]:
         print(f"[SKIP] Skipping Visitors group for {label}")
         return
 
     members = MEMBER_LISTS[group][:]
 
-    # Apply exclusions
-if group != "Visitors":
+    # Apply exclusions (only if not Visitors)
+    if group != "Visitors":
         excluded = EXCLUSIONS.get(label, {}).get(group, [])
         members = [m for m in members if m not in excluded]
 
+    # Start session
     user_sessions[user_id] = {
         "group": group,
         "label": label,
@@ -115,22 +116,25 @@ if group != "Visitors":
         print(f"[SKIP] No private chat for user {user_id}")
         return
 
+    # Set prompt text based on group
     if group == "Visitors":
         prompt_text = f"Who attended the {label} service?"
     else:
         prompt_text = f"Who did you miss this {label}?"
 
+    # Construct keyboard
     keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in members]
 
     if group == "Visitors":
         keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")]]
-
     if group != "Visitors":
         keyboard += [[InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")]]
 
     keyboard += [[InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
 
+    # Send message
     await bot.send_message(chat_id, text=prompt_text, reply_markup=InlineKeyboardMarkup(keyboard))
+
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
