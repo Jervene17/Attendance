@@ -127,7 +127,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
 
     if group == "Visitors":
         keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")]]
-    if group != "Visitors":
+    else:
         keyboard += [[InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")]]
 
     keyboard += [[InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
@@ -135,19 +135,17 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
     # Send message
     await bot.send_message(chat_id, text=prompt_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-
-async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != "private":
-        await update.message.reply_text("❌ Please use /start in a private chat with the bot.")
-        return
-
-    user_id = update.effective_user.id
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
     chat_id = update.effective_chat.id
 
-    context.bot_data.setdefault("user_chats", {})[user_id] = chat_id
-    save_user_chats(context.bot_data["user_chats"])
+    if "user_chats" not in context.bot_data:
+        context.bot_data["user_chats"] = {}
 
-    await update.message.reply_text("✅ You're now registered for attendance prompts.")
+    # Save private chat only
+    if update.effective_chat.type == "private":
+        context.bot_data["user_chats"][user.id] = chat_id
+        await update.message.reply_text("You're now registered for attendance prompts.")
 
 async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -189,33 +187,41 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
     session = user_sessions.get(user_id)
+
     if not session:
         await query.edit_message_text("Session expired. Send /start again.")
         return
 
     if data == "ALL_ACCOUNTED":
         await submit_attendance(user_id, context, query)
+
     elif data == "NOT_LISTED":
         context.user_data["awaiting_visitor"] = True
         await query.message.reply_text("Enter the name of the visitor who attended:")
+
     elif data == "ADD_NEWCOMER":
         context.user_data["awaiting_newcomer"] = True
         await query.message.reply_text("Enter newcomer name:")
-    else:
-    session["selected"].append(data)
-    session["members"].remove(data)
 
-    if session["group"] != "Visitors":
-        context.user_data["awaiting_reason"] = data
-        await query.message.reply_text(f"Why did you miss {data}?")
     else:
-        # No reason needed, refresh keyboard immediately
-        keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
-        keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")],
-                      [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
-                     [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
-        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
-       
+        # This part was incorrectly indented before
+        if data in session["members"]:
+            session["selected"].append(data)
+            session["members"].remove(data)
+
+        if session["group"] != "Visitors":
+            context.user_data["awaiting_reason"] = data
+            await query.message.reply_text(f"Why did you miss {data}?")
+        else:
+            # No reason needed, refresh the keyboard immediately
+            keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
+            keyboard += [
+                [InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")],
+                [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
+                [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]
+            ]
+            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
 async def submit_attendance(user_id, context, query):
     session = user_sessions.pop(user_id, None)
     if not session:
