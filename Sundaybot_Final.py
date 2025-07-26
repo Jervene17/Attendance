@@ -90,7 +90,14 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
     group = USER_GROUPS[user_id]
     members = MEMBER_LISTS[group][:]
 
-    if group != "Visitors":
+if group == "Visitors" and label in ["Predawn", "Wednesday"]:
+        print(f"[SKIP] Skipping Visitors group for {label}")
+        return
+
+    members = MEMBER_LISTS[group][:]
+
+    # Apply exclusions
+if group != "Visitors":
         excluded = EXCLUSIONS.get(label, {}).get(group, [])
         members = [m for m in members if m not in excluded]
 
