@@ -145,6 +145,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Save private chat only
     if update.effective_chat.type == "private":
         context.bot_data["user_chats"][user.id] = chat_id
+        save_user_chats(context.bot_data["user_chats"])  # ✅ This line is crucial
         await update.message.reply_text("You're now registered for attendance prompts.")
 
 async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
