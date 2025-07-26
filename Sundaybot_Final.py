@@ -294,11 +294,13 @@ async def submit_attendance(user_id, context, query):
         all_absentees = [{"name": "ALL ACCOUNTED", "reason": ""}]
 
     data = {
-        "group": session["group"],
-        "label": session["label"],
-        "date": datetime.datetime.now().strftime("%Y-%m-%d"),
-        "absentees": all_absentees
-    }
+    "group": session["group"],
+    "label": session["label"],
+    "date": datetime.datetime.now().strftime("%Y-%m-%d"),
+    "absentees": all_absentees,
+    "chat_id": query.message.chat.id,
+    "username": query.from_user.username or USER_NAMES.get(user_id, "Unknown")
+}
 
     try:
         requests.post(WEBHOOK_URL, json=data)
