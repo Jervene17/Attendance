@@ -406,9 +406,12 @@ async def main():
     app.add_handler(CallbackQueryHandler(handle_button))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reason))
     scheduler.start()
-    print("🤖 Bot is running...")
-    await app.run_polling()
+    print("🤖 Bot is running (webhook)...")
 
-if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    await app.run_webhook(
+            listen="0.0.0.0",
+            port=int(os.environ.get("PORT", 8443)),
+            webhook_url=WEBHOOK_URL
+        )
+
+    asyncio.run(main())
