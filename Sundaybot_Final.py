@@ -12,9 +12,6 @@ from telegram.ext import (
     MessageHandler, ContextTypes, filters
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-import nest_asyncio
-
-nest_asyncio.apply()
 
 BOT_TOKEN = '7651692145:AAGmvAfhjqJ_bhKOyTM-KN3EDGlGaqLOY6E'
 WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxbOAoL3sgcNdHdXdCpiOTolC_5exn0PQDHmeV9zHmHGdtscMY9-SKk0MknzxaD_ufV/exec'
@@ -154,9 +151,6 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     session = user_sessions.get(user_id)
 
-    if not session:
-        return  # 🔇 Ignore messages if no active session
-
     # ✅ Handle custom reason (for "Others")
     if context.user_data.get("awaiting_reason_custom"):
         name = context.user_data.pop("awaiting_reason_custom")
@@ -224,10 +218,6 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     session = user_sessions.get(user_id)
 
-    if not session:
-        await query.edit_message_text("Session expired. Send /start again.")
-        return
-
     if data == "ALL_ACCOUNTED":
         await submit_attendance(user_id, context, query)
         if "progress" in context.bot_data:
@@ -281,9 +271,6 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def submit_attendance(user_id, context, query):
     session = user_sessions.pop(user_id, None)
-    if not session:
-        await query.edit_message_text("Session expired.")
-        return
 
     selected_absentees = [{"name": name, "reason": session["reasons"].get(name, "")} for name in session["selected"]]
     visitor_absentees = [{"name": v, "reason": "VISITOR"} for v in session.get("visitors", [])]
