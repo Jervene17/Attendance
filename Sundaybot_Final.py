@@ -398,20 +398,32 @@ async def update_progress_message(context: ContextTypes.DEFAULT_TYPE):
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.bot_data["user_chats"] = load_user_chats()
+
+    # Commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("restart_attendance", restart_attendance))
     app.add_handler(CommandHandler("predawn", predawn))
     app.add_handler(CommandHandler("sunday", sunday))
     app.add_handler(CommandHandler("wednesday", wednesday))
+
+    # Buttons
     app.add_handler(CallbackQueryHandler(handle_button))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reason))
+
+    # Only handle non-command text in private chats
+    app.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
+            handle_reason
+        )
+    )
+
     scheduler.start()
     print("🤖 Bot is running (webhook)...")
 
     await app.run_webhook(
-            listen="0.0.0.0",
-            port=int(os.environ.get("PORT", 8443)),
-            webhook_url=WEBHOOK_URL
-        )
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8443)),
+        webhook_url=WEBHOOK_URL
+    )
 
     asyncio.run(main())
