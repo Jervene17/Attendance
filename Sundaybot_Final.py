@@ -19,15 +19,25 @@ WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxbOAoL3sgcNdHdXdCpiOTolC
 # === Persistent Storage ===
 USER_CHATS_FILE = "user_chats.json"
 
+import logging
+
 def load_user_chats():
     if os.path.exists(USER_CHATS_FILE):
-        with open(USER_CHATS_FILE, "r") as f:
-            return {int(k): v for k, v in json.load(f).items()}
+        try:
+            with open(USER_CHATS_FILE, "r") as f:
+                data = json.load(f)
+            return {int(k): v for k, v in data.items()}
+        except Exception as e:
+            logging.error(f"Failed to load user chats: {e}")
+            return {}
     return {}
 
 def save_user_chats(data):
-    with open(USER_CHATS_FILE, "w") as f:
-        json.dump(data, f)
+    try:
+        with open(USER_CHATS_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        logging.error(f"Failed to save user chats: {e}")
 
 # === Static Config ===
 USER_GROUPS = {
@@ -137,14 +147,14 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat_id = update.effective_chat.id
+    print(f"Received /start from user {user.id} in chat {chat_id}")
 
     if "user_chats" not in context.bot_data:
         context.bot_data["user_chats"] = {}
 
-    # Save private chat only
     if update.effective_chat.type == "private":
         context.bot_data["user_chats"][user.id] = chat_id
-        save_user_chats(context.bot_data["user_chats"])  # ✅ This line is crucial
+        save_user_chats(context.bot_data["user_chats"])
         await update.message.reply_text("You're now registered for attendance prompts.")
 
 async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
