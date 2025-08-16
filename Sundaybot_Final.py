@@ -368,7 +368,7 @@ async def update_progress_message(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print("Failed to update progress message:", e)
 
-async def main():
+def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.bot_data["user_chats"] = {}
 
@@ -393,7 +393,7 @@ async def main():
     scheduler.start()
     print("🤖 Bot is running (webhook)...")
 
-    await app.run_webhook(
+    app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
         webhook_url=WEBHOOK_URL
@@ -401,5 +401,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
