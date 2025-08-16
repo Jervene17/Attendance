@@ -20,6 +20,8 @@ from telegram.helpers import escape_markdown
 load_dotenv(".env")  # replace with ".env" if you rename the file
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN is missing. Check your .env or Railway env variables.")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 user_sessions = {}
