@@ -19,9 +19,7 @@ from telegram.helpers import escape_markdown
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-print("DEBUG BOT_TOKEN:", BOT_TOKEN[:10] if BOT_TOKEN else "None")  # keep for now
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN is missing. Check your .env or Railway env variables.")
+print("DEBUG: Railway BOT_TOKEN =", repr(os.getenv("BOT_TOKEN")))
 
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
