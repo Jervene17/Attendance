@@ -62,7 +62,7 @@ MEMBER_LISTS = {
     "CAMPUS FEMALES": ["Divine", "Marinell"],
     "JS": ["MCor", "Tita Merlita", "Grace", "Emeru"],
     "Visitors": ["Riza","M Saeyoung","Taiki", "Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
-    "HQ": ["PK","M Ju Nara","M Sarah","Mjhay"]
+    "HQ": ["PK","M Ju Nara","MA","M Sarah","Mjhay"]
 }
 
 EXCLUSIONS = {
@@ -335,7 +335,7 @@ async def submit_attendance(user_id, context, query):
 
             message = escape_markdown("📋 Sunday Absentees:\n", version=2) + "\n".join(absentees_text_list)
 
-            target_user_ids = [439340490, 515714808]  # Replace with actual Telegram IDs
+            target_user_ids = [439340490]  # Replace with actual Telegram IDs
             for uid in target_user_ids:
                 try:
                     await context.bot.send_message(
