@@ -36,7 +36,7 @@ USER_GROUPS = {
     2016438287: "CAMPUS FEMALES",
     544095264: "JS",
     515714808: "FAMILY MALES",
-    888888888: "Visitors",
+    2120840431: "Visitors",
     000000000: "HQ"
 }
 
@@ -49,6 +49,7 @@ USER_NAMES = {
     2016438287: "Divine",
     544095264: "MCor",
     515714808: "Jervene",
+    2120840431: "Andrea"
 }
 
 MEMBER_LISTS = {
