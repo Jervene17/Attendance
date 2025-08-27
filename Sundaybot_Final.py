@@ -36,7 +36,7 @@ USER_GROUPS = {
     2016438287: "CAMPUS FEMALES",
     544095264: "JS",
     515714808: "FAMILY MALES",
-    888888888: "Visitors online",
+    888888888: "Visitors",
     000000000: "HQ"
 }
 
@@ -60,19 +60,19 @@ MEMBER_LISTS = {
     "CAREER FEMALES 3": ["D Rue", "PP Bam", "Zhandra", "Trina", "Dr Kristine"],
     "CAMPUS FEMALES": ["Divine", "Marinell"],
     "JS": ["MCor", "Tita Merlita", "Grace", "Emeru"],
-    "Visitors online": ["Riza","M Saeyoung","Taiki", "Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
+    "Visitors": ["Riza","M Saeyoung","Taiki", "Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
     "HQ": ["PK","M Ju Nara","M Sarah","Mjhay"]
 }
 
 EXCLUSIONS = {
     "Predawn": {
             "CAREER FEMALES 2": ["Donna", "Vicky"],
-        "Visitors online": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
+        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
         "JS":["Tita Merlita"]
     },
     "Wednesday": {
         "CAREER FEMALES 2": ["Donna", "Vicky"],
-        "Visitors online": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
+        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
         "JS":["Tita Merlita"]
     }
 }
@@ -81,14 +81,14 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
     group = USER_GROUPS[user_id]
 
     # Skip prompting Visitors for Predawn and Wednesday
-    if group == "Visitors online" and label in ["Predawn", "Wednesday"]:
+    if group == "Visitors" and label in ["Predawn", "Wednesday"]:
         print(f"[SKIP] Skipping Visitors group for {label}")
         return
 
     members = MEMBER_LISTS[group][:]
 
     # Apply exclusions (only if not Visitors)
-    if group != "Visitors online":
+    if group != "Visitors":
         excluded = EXCLUSIONS.get(label, {}).get(group, [])
         members = [m for m in members if m not in excluded]
 
@@ -109,7 +109,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
         return
 
     # Set prompt text based on group
-    if group == "Visitors online":
+    if group == "Visitors":
         prompt_text = f"Who attended the {label} service?"
     else:
         prompt_text = f"Who did you miss this {label}?"
@@ -117,7 +117,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
     # Construct keyboard
     keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in members]
 
-    if group == "Visitors online":
+    if group == "Visitors":
         keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")]]
     else:
         keyboard += [[InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")]]
@@ -189,7 +189,7 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Reason recorded for {name}.")
 
     # ✅ Refresh keyboard for next person
-    if session.get("group") == "Visitors online":
+    if session.get("group") == "Visitors":
         keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
         keyboard += [
             [InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")],
@@ -248,7 +248,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session["selected"].append(data)
         session["members"].remove(data)
 
-        if session["group"] != "Visitors online":
+        if session["group"] != "Visitors":
             context.user_data["awaiting_reason_name"] = data
 
             reason_options = [
@@ -294,7 +294,7 @@ async def submit_attendance(user_id, context, query):
     # Visitors: added during session
     visitors = [
         {"name": v.replace("Visitor - ", ""), "reason": "visitor"} 
-        for v in session.get("visitors online", [])
+        for v in session.get("visitors", [])
     ]
 
     # Combine all for submission
