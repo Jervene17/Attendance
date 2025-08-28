@@ -279,32 +279,44 @@ async def submit_attendance(user_id, context, query):
 
     # Absentees: selected members with reasons
     selected_absentees = [
-        {"name": name, "reason": session["reasons"].get(name, "")} 
+        {
+            "name": name,
+            "reason": session["reasons"].get(name, ""),
+            "department": session["group"]  # original group
+        } 
         for name in session["selected"]
     ]
 
-    # Newcomers: members added during session who weren't marked absent
+    # Newcomers: department is "Newcomers"
     newcomers = [
-    {"name": n, "reason": "newcomer"} 
-    for n in session.get("newcomers", [])
-]
+        {
+            "name": n,
+            "reason": "",
+            "department": "Newcomers"
+        } 
+        for n in session.get("newcomers", [])
+    ]
 
-    # Visitors: added during session
+    # Visitors: department is "Visitors"
     visitors = [
-        {"name": v.replace("Visitor - ", ""), "reason": "visitor"} 
+        {
+            "name": v.replace("Visitor - ", ""),
+            "reason": "",
+            "department": "Visitors"
+        } 
         for v in session.get("visitors", [])
     ]
 
-    # Combine all for submission
+    # Combine all entries
     all_entries = selected_absentees + newcomers + visitors
 
     if not all_entries:
-        all_entries = [{"name": "ALL ACCOUNTED", "reason": ""}]
+        all_entries = [{"name": "ALL ACCOUNTED", "reason": "", "department": session["group"]}]
 
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
 
     data = {
-        "group": session["group"],
+        "group": session["group"],  # original group of the user submitting
         "label": session["label"],
         "date": current_date,
         "absentees": all_entries,
