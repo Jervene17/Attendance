@@ -291,7 +291,7 @@ async def submit_attendance(user_id, context, query):
     newcomers = [
         {
             "name": n,
-            "reason": "",
+            "reason": "NC",
             "department": "Newcomers"
         } 
         for n in session.get("newcomers", [])
