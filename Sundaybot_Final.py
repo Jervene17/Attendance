@@ -78,6 +78,28 @@ EXCLUSIONS = {
     }
 }
 
+# 🔹 Helper: build prompt text + keyboard
+def build_attendance_prompt(group, members):
+    # Decide prompt text
+    if group in ["HQ", "Visitors"]:
+        prompt_text = "Who else attended?"
+    else:
+        prompt_text = "Who else did you miss?"
+
+    # Build keyboard
+    keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in members]
+
+    if group == "Visitors":
+        keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")]]
+    elif group != "HQ":
+        keyboard += [[InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")]]
+
+    keyboard += [[InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
+
+    return prompt_text, InlineKeyboardMarkup(keyboard)
+
+
+# 🔹 Main: send attendance prompt
 async def send_attendance_prompt(user_id, bot: Bot, context, label):
     group = USER_GROUPS[user_id]
 
@@ -93,14 +115,14 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
         excluded = EXCLUSIONS.get(label, {}).get(group, [])
         members = [m for m in members if m not in excluded]
 
-    # ✅ Start session (correct indentation here)
+    # ✅ Start session
     user_sessions[user_id] = {
         "group": group,
         "label": label,
         "members": members[:],       # existing members
         "selected": [],
         "reasons": {},
-        "visitors online": [],
+        "visitors": [],
         "newcomers": []              # track manually added newcomers only
     }
 
@@ -109,27 +131,14 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
         print(f"[SKIP] No private chat for user {user_id}")
         return
 
-    # Set prompt text based on group
-    if group == "Visitors":
-        prompt_text = f"Who attended the {label} service?"
-    else:
-        prompt_text = f"Who did you miss this {label}?"
-
-    # Construct keyboard
-    keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in members]
-
-    if group == "Visitors":
-        keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")]]
-    else:
-        keyboard += [[InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")]]
-
-    keyboard += [[InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
+    # 🔹 Use helper for text + keyboard
+    prompt_text, keyboard = build_attendance_prompt(group, members)
 
     # Send message
     await bot.send_message(
         chat_id,
         text=prompt_text,
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=keyboard
     )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -155,22 +164,10 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session["reasons"][name] = custom_reason
         await update.message.reply_text(f"✅ Reason recorded for {name}: {custom_reason}")
 
-        # Refresh keyboard if more members left
-        if session["members"]:
-            keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
-            keyboard += [
-                [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
-                [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]
-            ]
-            await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
-        else:
-            await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
-        return  # Important to return here to avoid processing below blocks
-
     # ✅ Handle visitor entry
-    if context.user_data.get("awaiting_visitor"):
+    elif context.user_data.get("awaiting_visitor"):
         name = update.message.text.strip()
-        session["visitors online"].append(f"Visitor - {name}")
+        session["visitors"].append(f"Visitor - {name}")   # renamed
         del context.user_data["awaiting_visitor"]
         await update.message.reply_text(f"✅ Added visitor: {name}")
 
@@ -189,23 +186,14 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session["reasons"][name] = reason
         await update.message.reply_text(f"✅ Reason recorded for {name}.")
 
-    # ✅ Refresh keyboard for next person
-    if session.get("group") == "Visitors":
-        keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
-        keyboard += [
-            [InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")],
-            [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]
-        ]
-        await update.message.reply_text("Who else attended?", reply_markup=InlineKeyboardMarkup(keyboard))
-    elif session["members"]:
-        keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
-        keyboard += [
-            [InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")],
-            [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]
-        ]
-        await update.message.reply_text("Who else did you miss?", reply_markup=InlineKeyboardMarkup(keyboard))
+        # ✅ Refresh keyboard
+    if session["members"]:
+        prompt, keyboard = build_attendance_prompt(session["group"], session["members"])
+        await update.message.reply_text(prompt, reply_markup=keyboard)
     else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
+
+
 
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
