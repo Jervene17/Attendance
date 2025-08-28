@@ -37,7 +37,7 @@ USER_GROUPS = {
     544095264: "JS",
     515714808: "FAMILY MALES",
     2120840431: "Visitors",
-    000000000: "HQ"
+    519557915: "HQ"
 }
 
 USER_NAMES = {
@@ -49,7 +49,8 @@ USER_NAMES = {
     2016438287: "Divine",
     544095264: "MCor",
     515714808: "Jervene",
-    2120840431: "Andrea"
+    2120840431: "Andrea",
+    519557915: "M Rose"
 }
 
 MEMBER_LISTS = {
@@ -67,14 +68,22 @@ MEMBER_LISTS = {
 
 EXCLUSIONS = {
     "Predawn": {
-            "CAREER FEMALES 2": ["Donna", "Vicky"],
-        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
-        "JS":["Tita Merlita"]
+        "CAREER FEMALES 2": ["Donna", "Vicky"],
+        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz","John Carlo Lucero",
+                     "Cherry Ann","Rhea Cho","Gemma","Yolly","Weng"],
+        "JS": ["Tita Merlita"]
     },
     "Wednesday": {
         "CAREER FEMALES 2": ["Donna", "Vicky"],
-        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz", "John Carlo Lucero", "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
-        "JS":["Tita Merlita"]
+        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz","John Carlo Lucero",
+                     "Cherry Ann","Rhea Cho","Gemma","Yolly","Weng"],
+        "JS": ["Tita Merlita"]
+    },
+    "Friday": {
+        "CAREER FEMALES 2": ["Donna", "Vicky"],
+        "Visitors": ["Riza","M Saeyoung","Taiki","Randrew Dela Cruz","John Carlo Lucero",
+                     "Cherry Ann","Rhea Cho","Gemma","Yolly","Weng"],
+        "JS": ["Tita Merlita"]
     }
 }
 
@@ -104,7 +113,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
     group = USER_GROUPS[user_id]
 
     # Skip prompting Visitors for Predawn and Wednesday
-    if group == "Visitors" and label in ["Predawn", "Wednesday"]:
+    if group == "Visitors" and label in ["Predawn", "Wednesday","Friday"]:
         print(f"[SKIP] Skipping Visitors group for {label}")
         return
 
@@ -422,6 +431,7 @@ async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def predawn(update, context): await broadcast_attendance(update, context, "Predawn")
 async def sunday(update, context): await broadcast_attendance(update, context, "Sunday")
 async def wednesday(update, context): await broadcast_attendance(update, context, "Wednesday")
+async def friday(update, context): await broadcast_attendance(update, context, "Friday")
 
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -432,7 +442,7 @@ def main():
     app.add_handler(CommandHandler("predawn", predawn))
     app.add_handler(CommandHandler("sunday", sunday))
     app.add_handler(CommandHandler("wednesday", wednesday))
-
+    app.add_handler(CommandHandler("friday", friday)) 
     # Callbacks
     app.add_handler(CallbackQueryHandler(handle_button))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reason))
