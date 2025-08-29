@@ -214,7 +214,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     label = context.user_data.get("label")   # retrieve the active label for this session
     data = query.data
-    
+
     session = user_sessions.get((user_id, label))   # use (user_id, label) as the key
     if not session:
         await query.edit_message_text("⚠️ No active session found for this prompt.")
@@ -224,7 +224,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await submit_attendance(user_id, context, query)
         if "progress" in context.bot_data:
             context.bot_data["progress"]["submitted"].add(user_id)
-            await update_progress(user_id, context)  # ✅ Use updated function
+            await update_progress(user_id, context)
         return
 
     elif data == "NOT_LISTED":
@@ -235,56 +235,52 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["awaiting_newcomer"] = True
         await query.message.reply_text("Enter newcomer name:")
 
-    elif data.startswith("REASON_") or "|REASON_" in data:
-        # Handle both plain REASON_ and label|REASON_
-        if "|REASON_" in data:
-            label, reason_code = data.split("|", 1)
-        else:
-            reason_code = data
-
-        reason_index = int(reason_code.split("_")[1])
+    elif data.startswith("REASON_"):
+        reason_index = int(data.split("_")[1])
         reason_options = context.user_data.get("reason_choices", [])
         reason = reason_options[reason_index] if reason_index < len(reason_options) else "Unknown"
 
         name = context.user_data.get("awaiting_reason_name")
         if name:
-            # Save the reason
             session["reasons"][name] = reason
-            # Flag awaiting free text explanation
             context.user_data["awaiting_reason"] = name
 
-        await query.message.reply_text(
-            f"Please specify for {escape_markdown(name, version=2)}. "
-            f"(Put N/A if no additional explanation needed)",
-            parse_mode="MarkdownV2"
-        )
+        await query.message.reply_text("Please specify. (Put N/A if no additional explanation needed)")
 
     elif data in session["members"]:
-    # Prevent duplicates just in case
+        # Prevent duplicates just in case
         if data not in session["selected"]:
             session["selected"].append(data)
-        session["members"].remove(data)
+            session["members"].remove(data)
 
         if session["group"] != "Visitors":
-            # Always ask for reason (Sunday / Wednesday / Predawn / Friday)
-            context.user_data["awaiting_reason_name"] = data
-            reason_options = [
-                "Family Emergency", "No Fare money", "Sick", "Taking care of a loved one",
-                "Work related", "Far from onsite without Electricity/Internet",
-                "Did not wake up early", "Need to relay to Headleader", "Others"
-            ]
-            context.user_data["reason_choices"] = reason_options
-
-            reason_kb = [
-                [InlineKeyboardButton(reason, callback_data=f"{label}|REASON_{i}")]
-                for i, reason in enumerate(reason_options)
-            ]
-            await query.message.reply_text(
-                f"Select reason for {escape_markdown(data, version=2)}:",
-                reply_markup=InlineKeyboardMarkup(reason_kb),
-                parse_mode="MarkdownV2"
-            )
-
+            # Predawn / Wednesday / Friday: skip reason, just mark and refresh keyboard
+            if label in ["Predawn", "Wednesday", "Friday"]:
+                # Refresh keyboard
+                keyboard = [[InlineKeyboardButton(m, callback_data=f"{label}|{m}")] for m in session["members"]]
+                keyboard += [
+                    [InlineKeyboardButton("➕ Add Newcomer", callback_data=f"{label}|ADD_NEWCOMER")],
+                    [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
+                ]
+                await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+            else:
+                # Ask for reason (Sunday)
+                context.user_data["awaiting_reason_name"] = data
+                reason_options = [
+                    "Family Emergency", "No Fare money", "Sick", "Taking care of a loved one",
+                    "Work related", "Far from onsite without Electricity/Internet",
+                    "Did not wake up early", "Need to relay to Headleader", "Others"
+                ]
+                context.user_data["reason_choices"] = reason_options
+                reason_kb = [
+                    [InlineKeyboardButton(reason, callback_data=f"{label}|REASON_{i}")]
+                    for i, reason in enumerate(reason_options)
+                ]
+                await query.message.reply_text(
+                    f"Select reason for {escape_markdown(data, version=2)}:",
+                    reply_markup=InlineKeyboardMarkup(reason_kb),
+                    parse_mode="MarkdownV2"
+                )
         else:
             # Visitors: just refresh the main keyboard
             keyboard = [[InlineKeyboardButton(m, callback_data=f"{label}|{m}")] for m in session["members"]]
