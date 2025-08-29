@@ -254,34 +254,11 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
          session["members"].remove(data)
 
     if session["group"] != "Visitors":
-        # Always ask for reason (Sunday / Wednesday / Predawn)
-        context.user_data["awaiting_reason_name"] = data
-
-        reason_options = [
-            "Family Emergency", "No Fare money", "Sick", "Taking care of a loved one",
-            "Work related", "Far from onsite without Electricity/Internet",
-            "Did not wake up early", "Need to relay to Headleader", "Others"
-        ]
-        context.user_data["reason_choices"] = reason_options
-        keyboard = [
-            [InlineKeyboardButton(reason, callback_data=f"REASON_{i}")]
-            for i, reason in enumerate(reason_options)
-        ]
-
-        await query.message.reply_text(
-            f"Select reason for {escape_markdown(data, version=2)}:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="MarkdownV2"
-        )
-    else:
-        # Visitors just update the keyboard
-        keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
-        keyboard += [
-            [InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")],
-            [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]
-        ]
-        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
-
+    # Always ask for direct explanation instead of showing reason choices
+        context.user_data["awaiting_reason"] = data
+    await query.message.reply_text(
+        "Please specify. (Put N/A if no additional explanation needed)"
+    )
 
 
 async def submit_attendance(user_id, context, query):
