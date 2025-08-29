@@ -125,7 +125,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
         members = [m for m in members if m not in excluded]
 
     # ✅ Start session
-    user_sessions[user_id] = {
+    user_sessions[(user_id, label)] = {
         "group": group,
         "label": label,
         "members": members[:],       # existing members
@@ -164,7 +164,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    session = user_sessions.get(user_id)
+    label = context.user_data.get("label")
+    session = user_sessions.get((user_id, label))   # use the tuple key
+    if not session:
+        await update.message.reply_text("⚠️ No active session found for this prompt.")
+        return
 
     # ✅ Handle custom reason (for "Others")
     if context.user_data.get("awaiting_reason_custom"):
@@ -208,11 +212,12 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
+    label = context.user_data.get("label")   # retrieve the active label for this session
     data = query.data
-    session = user_sessions.get(user_id)
-
+    
+    session = user_sessions.get((user_id, label))   # use (user_id, label) as the key
     if not session:
-        await query.edit_message_text("ℹ️ No active session found.")
+        await query.edit_message_text("⚠️ No active session found for this prompt.")
         return
 
     if data == "ALL_ACCOUNTED":
@@ -237,16 +242,22 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         name = context.user_data.get("awaiting_reason_name")
         if name:
-            user_sessions[user_id]["reasons"][name] = reason
-            context.user_data["awaiting_reason"] = name
+         session["reasons"][name] = reason
 
-            await query.message.reply_text("Please specify. (Put N/A if no additional explanation needed)")
+        context.user_data["awaiting_reason"] = name
+
+        await query.message.reply_text("Please specify. (Put N/A if no additional explanation needed)")
 
     elif data in session["members"]:
         session["selected"].append(data)
         session["members"].remove(data)
 
-        if session["group"] != "Visitors":
+       if session["group"] != "Visitors":
+        # 🔹 Skip reason collection for Predawn
+        if label == "Predawn":
+            # Directly mark as absent without reason
+            session["reasons"][data] = "N/A"
+        else:
             context.user_data["awaiting_reason_name"] = data
 
             reason_options = [
@@ -272,7 +283,8 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def submit_attendance(user_id, context, query):
-    session = user_sessions.pop(user_id, None)
+    label = context.user_data.get("label")
+    session = user_sessions.pop((user_id, label), None)
     if not session:
         await query.edit_message_text("ℹ️ No active session found.")
         return
@@ -434,8 +446,9 @@ async def update_progress(user_id, context):
 
 async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if user_id in user_sessions:
-        user_sessions.pop(user_id)
+    label = context.user_data.get("label")
+    if (user_id, label) in user_sessions:
+        user_sessions.pop((user_id, label))
         await update.message.reply_text("🔁 Your attendance session has been reset.")
     else:
         await update.message.reply_text("ℹ️ No active session to reset.")
