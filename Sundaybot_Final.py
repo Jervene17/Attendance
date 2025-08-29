@@ -252,11 +252,11 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session["selected"].append(data)
         session["members"].remove(data)
 
-       if session["group"] != "Visitors":
+        if session["group"] != "Visitors":
         # 🔹 Skip reason collection for Predawn
-        if label == "Predawn":
+            if label == "Predawn":
             # Directly mark as absent without reason
-            session["reasons"][data] = "N/A"
+                session["reasons"][data] = "N/A"
         else:
             context.user_data["awaiting_reason_name"] = data
 
