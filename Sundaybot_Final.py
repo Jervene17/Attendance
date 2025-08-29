@@ -250,9 +250,8 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data in session["members"]:
     # Prevent duplicates just in case
         if data not in session["selected"]:
-            session["selected"].append(data)
-    if data in session["members"]:
-        session["members"].remove(data)
+         session["selected"].append(data)
+         session["members"].remove(data)
 
     if session["group"] != "Visitors":
         # Always ask for reason (Sunday / Wednesday / Predawn)
@@ -282,6 +281,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]
         ]
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
 
 
 async def submit_attendance(user_id, context, query):
