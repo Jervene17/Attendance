@@ -235,17 +235,29 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["awaiting_newcomer"] = True
         await query.message.reply_text("Enter newcomer name:")
 
-    elif data.startswith("REASON_"):
-        reason_index = int(data.split("_")[1])
+    elif data.startswith("REASON_") or "|REASON_" in data:
+        # Handle both plain REASON_ and label|REASON_
+        if "|REASON_" in data:
+            label, reason_code = data.split("|", 1)
+        else:
+            reason_code = data
+
+        reason_index = int(reason_code.split("_")[1])
         reason_options = context.user_data.get("reason_choices", [])
         reason = reason_options[reason_index] if reason_index < len(reason_options) else "Unknown"
 
         name = context.user_data.get("awaiting_reason_name")
         if name:
+            # Save the reason
             session["reasons"][name] = reason
+            # Flag awaiting free text explanation
             context.user_data["awaiting_reason"] = name
 
-        await query.message.reply_text("Please specify. (Put N/A if no additional explanation needed)")
+        await query.message.reply_text(
+            f"Please specify for {escape_markdown(name, version=2)}. "
+            f"(Put N/A if no additional explanation needed)",
+            parse_mode="MarkdownV2"
+        )
 
     elif data in session["members"]:
     # Prevent duplicates just in case
