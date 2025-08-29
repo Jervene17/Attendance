@@ -134,7 +134,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
         "visitors": [],
         "newcomers": []              # track manually added newcomers only
     }
-
+    context.user_data["label"] = label
     chat_id = context.bot_data.get("user_chats", {}).get(user_id)
     if not chat_id:
         print(f"[SKIP] No private chat for user {user_id}")
