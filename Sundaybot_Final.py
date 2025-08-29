@@ -272,7 +272,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Select reason for {escape_markdown(data, version=2)}:",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-        else:
+    else:
             # Visitors just update the keyboard
             keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
             keyboard += [
