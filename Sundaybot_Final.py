@@ -243,8 +243,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = context.user_data.get("awaiting_reason_name")
         if name:
             session["reasons"][name] = reason
-
-        context.user_data["awaiting_reason"] = name
+            context.user_data["awaiting_reason"] = name
 
         await query.message.reply_text("Please specify. (Put N/A if no additional explanation needed)")
 
