@@ -260,6 +260,11 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"{escape_markdown(data, version=2)} marked absent (no reason required for Predawn).",
                     parse_mode="MarkdownV2"
                 )
+                keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in session["members"]]
+                keyboard += [[InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
+                await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+            
+            
             else:
                 # Ask for reason (Sunday / Wednesday)
                 context.user_data["awaiting_reason_name"] = data
