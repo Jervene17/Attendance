@@ -88,12 +88,13 @@ EXCLUSIONS = {
 }
 
 # 🔹 Helper: build prompt text + keyboard
-def build_attendance_prompt(group, members):
+# 🔹 Helper: build prompt text + keyboard
+def build_attendance_prompt(group, members, label):
     # Decide prompt text
     if group in ["HQ", "Visitors"]:
-        prompt_text = "Who else attended?"
+        prompt_text = f"Who attended this {label}?"
     else:
-        prompt_text = "Who else did you miss?"
+        prompt_text = f"Who did you miss this {label}?"
 
     # Build keyboard
     keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in members]
@@ -106,6 +107,7 @@ def build_attendance_prompt(group, members):
     keyboard += [[InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
 
     return prompt_text, InlineKeyboardMarkup(keyboard)
+
 
 
 # 🔹 Main: send attendance prompt
@@ -141,7 +143,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
         return
 
     # 🔹 Use helper for text + keyboard
-    prompt_text, keyboard = build_attendance_prompt(group, members)
+    prompt_text, keyboard = build_attendance_prompt(group, members, label)
 
     # Send message
     await bot.send_message(
@@ -201,9 +203,8 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # ✅ Refresh keyboard
     if session["members"]:
-        prompt, keyboard = build_attendance_prompt(session["group"], session["members"])
+        prompt, keyboard = build_attendance_prompt(session["group"], session["members"], label)
         await update.message.reply_text(prompt, reply_markup=keyboard)
-    else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
 
 
@@ -287,51 +288,42 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def submit_attendance(user_id, context, query):
     label = context.user_data.get("label")
-    session = user_sessions.pop((user_id, label), None)
+    session = user_sessions.get((user_id, label))   # don't pop yet
     if not session:
         await query.edit_message_text("ℹ️ No active session found.")
         return
 
-    # Absentees: selected members with reasons
+    # Absentees
     selected_absentees = [
         {
             "name": name,
             "reason": session["reasons"].get(name, ""),
-            "department": session["group"]  # original group
-        } 
+            "department": session["group"]
+        }
         for name in session["selected"]
     ]
 
-    # Newcomers: department is "Newcomers"
+    # Newcomers
     newcomers = [
-        {
-            "name": n,
-            "reason": "NC",
-            "department": "Newcomers"
-        } 
+        {"name": n, "reason": "NC", "department": "Newcomers"}
         for n in session.get("newcomers", [])
     ]
 
-    # Visitors: department is "Visitors"
+    # Visitors
     visitors = [
-        {
-            "name": v.replace("Visitor - ", ""),
-            "reason": "",
-            "department": "Visitors"
-        } 
+        {"name": v.replace("Visitor - ", ""), "reason": "", "department": "Visitors"}
         for v in session.get("visitors", [])
     ]
 
-    # Combine all entries
+    # Combine
     all_entries = selected_absentees + newcomers + visitors
-
     if not all_entries:
         all_entries = [{"name": "ALL ACCOUNTED", "reason": "", "department": session["group"]}]
 
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
 
     data = {
-        "group": session["group"],  # original group of the user submitting
+        "group": session["group"],
         "label": session["label"],
         "date": current_date,
         "absentees": all_entries,
@@ -343,7 +335,7 @@ async def submit_attendance(user_id, context, query):
         requests.post(WEBHOOK_URL, json=data)
         await query.edit_message_text("✅ Attendance submitted.")
 
-        # Send Sunday absentees to specific users
+        # Sunday special message
         today = datetime.datetime.now().strftime("%A")
         entries_for_message = [item for item in all_entries if item["name"] != "ALL ACCOUNTED"]
 
@@ -354,12 +346,11 @@ async def submit_attendance(user_id, context, query):
                 reason = item.get("reason", "")
                 line = f"{name}: {reason if reason else 'N/A'}"
                 escaped_line = escape_markdown(line, version=2)
-                escaped_bullet_line = escape_markdown("• ", version=2) + escaped_line
-                absentees_text_list.append(escaped_bullet_line)
+                absentees_text_list.append("• " + escaped_line)
 
             message = escape_markdown("📋 Sunday Absentees:\n", version=2) + "\n".join(absentees_text_list)
 
-            target_user_ids = [439340490]  # Replace with actual Telegram IDs
+            target_user_ids = [439340490]  # Replace with actual IDs
             for uid in target_user_ids:
                 try:
                     await context.bot.send_message(
@@ -373,6 +364,10 @@ async def submit_attendance(user_id, context, query):
     except Exception as e:
         await query.edit_message_text(f"❌ Submission failed: {e}")
 
+    # ✅ always clear this user’s session at the very end
+    user_sessions.pop((user_id, label), None)
+
+    # Update group progress after submission
     await update_progress(user_id, context)
 
 async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE, label: str):
