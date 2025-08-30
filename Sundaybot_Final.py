@@ -254,8 +254,9 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = context.user_data.get("awaiting_reason_name")
         if name:
             session["reasons"][name] = reason
-            context.user_data["awaiting_reason"] = name
-            await query.message.reply_text("Please specify. (Put N/A if no additional explanation needed)")
+            await query.message.reply_text(
+                "⚠️ Please message Pastor Auda directly for any reason that needs further explanation."
+            )
         return
 
     # Member selection
@@ -284,8 +285,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 for i, reason in enumerate(reason_options)
             ]
             await query.message.reply_text(
-                f"Select reason for {escape_markdown(data, version=2)}:\n\n"
-                "⚠️ Please message Pastor Auda directly for any reason that needs further explanation.",
+                f"Select reason for {escape_markdown(data, version=2)}:",
                 reply_markup=InlineKeyboardMarkup(reason_kb),
                 parse_mode=ParseMode.MARKDOWN_V2
             )
