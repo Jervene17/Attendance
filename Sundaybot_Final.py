@@ -246,42 +246,14 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("Enter newcomer name:")
         return
 
-    # Reason selection (REASON_x)
-    elif data.startswith("REASON_"):
-        reason_index = int(data.split("_")[1])
-        reason_options = context.user_data.get("reason_choices", [])
-        reason = reason_options[reason_index] if reason_index < len(reason_options) else "Unknown"
-        name = context.user_data.get("awaiting_reason_name")
-        if name:
-            session["reasons"][name] = reason
-
-        # Send notice about contacting Pastor Auda
-        await query.message.reply_text(
-            "⚠️ Please message Pastor Auda directly for any reason that needs further explanation."
-        )
-
-        # Refresh member keyboard so user can continue selecting names
-        keyboard = [
-            [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
-            for m in session["members"]
-        ]
-        keyboard += [
-            [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
-            [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
-        ]
-        await query.edit_message_reply_markup(
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return
-
-    # Member selection
+    # Member clicked
     elif data in session["members"]:
         if data not in session["selected"]:
             session["selected"].append(data)
             session["members"].remove(data)
 
-        # Non-Visitors need to select reason next
         if session["group"] != "Visitors":
+            # Non-Visitor: ask reason
             context.user_data["awaiting_reason_name"] = data
             reason_options = [
                 "Family Emergency",
@@ -306,7 +278,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.MARKDOWN_V2
             )
         else:
-            # Visitors: just refresh member keyboard
+            # Visitor: just refresh member keyboard
             keyboard = [
                 [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
                 for m in session["members"]
@@ -320,8 +292,33 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
 
+    # Reason selection (REASON_x)
+    elif data.startswith("REASON_"):
+        reason_index = int(data.split("_")[1])
+        reason_options = context.user_data.get("reason_choices", [])
+        reason = reason_options[reason_index] if reason_index < len(reason_options) else "Unknown"
+        name = context.user_data.get("awaiting_reason_name")
+        if name:
+            session["reasons"][name] = reason
 
+        # Show Pastor Auda notice
+        await query.message.reply_text(
+            "⚠️ Please message Pastor Auda directly for any reason that needs further explanation."
+        )
 
+        # Refresh member keyboard
+        keyboard = [
+            [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
+            for m in session["members"]
+        ]
+        keyboard += [
+            [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
+            [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
+        ]
+        await query.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
 
 # 🔹 Submit attendance
 async def submit_attendance(user_id, context, query):
