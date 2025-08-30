@@ -273,49 +273,55 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
     # Member selection
+  # Member selection
     elif data in session["members"]:
         if data not in session["selected"]:
             session["selected"].append(data)
             session["members"].remove(data)
 
-            # Only non-Visitors require a reason
-            if session["group"] != "Visitors":
-                context.user_data["awaiting_reason_name"] = data
-                reason_options = [
-                    "Family Emergency",
-                    "No Fare money",
-                    "Sick",
-                    "Taking care of a loved one",
-                    "Work related",
-                    "Far from onsite without Electricity/Internet",
-                    "Did not wake up early",
-                    "Need to relay to Headleader",
-                    "Others"
-                ]
-                context.user_data["reason_choices"] = reason_options
-                reason_kb = [
-                    [InlineKeyboardButton(reason, callback_data=f"{label}|REASON_{i}")]
-                    for i, reason in enumerate(reason_options)
-                ]
-                await query.message.reply_text(
-                    f"Select reason for {escape_markdown(data, version=2)}:",
-                    reply_markup=InlineKeyboardMarkup(reason_kb),
-                    parse_mode="MarkdownV2"
-                )
-            else:
-                # Refresh Visitors keyboard
-                keyboard = [
-                    [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
-                    for m in session["members"]
-                ]
-                keyboard += [
-                    [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
-                    [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
-                ]
-                await query.edit_message_reply_markup(
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-        return
+        # Only non-Visitors require a reason
+        if session["group"] != "Visitors":
+            context.user_data["awaiting_reason_name"] = data
+            reason_options = [
+                "Family Emergency",
+                "No Fare money",
+                "Sick",
+                "Taking care of a loved one",
+                "Work related",
+                "Far from onsite without Electricity/Internet",
+                "Did not wake up early",
+                "Need to relay to Headleader",
+                "Others"
+            ]
+            context.user_data["reason_choices"] = reason_options
+
+            # Build reason keyboard
+            reason_kb = [
+                [InlineKeyboardButton(reason, callback_data=f"{label}|REASON_{i}")]
+                for i, reason in enumerate(reason_options)
+            ]
+            msg = await query.message.reply_text(
+                f"Select reason for {escape_markdown(data, version=2)}:",
+                reply_markup=InlineKeyboardMarkup(reason_kb),
+                parse_mode="MarkdownV2"
+            )
+            session.setdefault("messages", []).append(msg)
+
+        else:
+            # Refresh Visitors keyboard
+            keyboard = [
+                [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
+                for m in session["members"]
+            ]
+            keyboard += [
+                [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
+                [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
+            ]
+            await query.edit_message_reply_markup(
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+    return
+
 async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     text = update.message.text
@@ -397,7 +403,21 @@ async def submit_attendance(user_id, context, query):
     try:
         requests.post(WEBHOOK_URL, json=data)
         await query.edit_message_text("✅ Attendance submitted.")
-
+    
+    # ✅ Remove all inline keyboards for this user
+        if "messages" in session:
+            for msg in session["messages"]:
+                try:
+                    await context.bot.edit_message_reply_markup(
+                        chat_id=msg.chat_id,
+                        message_id=msg.message_id,
+                        reply_markup=None
+                    )
+                except Exception as e:
+                    print(f"❌ Failed to remove keyboard for message {msg.message_id}: {e}")
+            # optional: clear the messages list
+            session["messages"].clear()
+        
         # Sunday special message
         today = datetime.datetime.now().strftime("%A")
         entries_for_message = [item for item in all_entries if item["name"] != "ALL ACCOUNTED"]
