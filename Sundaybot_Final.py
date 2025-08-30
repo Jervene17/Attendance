@@ -254,9 +254,24 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = context.user_data.get("awaiting_reason_name")
         if name:
             session["reasons"][name] = reason
-            await query.message.reply_text(
-                "⚠️ Please message Pastor Auda directly for any reason that needs further explanation."
-            )
+
+        # Send notice about contacting Pastor Auda
+        await query.message.reply_text(
+            "⚠️ Please message Pastor Auda directly for any reason that needs further explanation."
+        )
+
+        # Refresh main member keyboard so user can continue selecting
+        keyboard = [
+            [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
+            for m in session["members"]
+        ]
+        keyboard += [
+            [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
+            [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
+        ]
+        await query.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         return
 
     # Member selection
@@ -285,7 +300,8 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 for i, reason in enumerate(reason_options)
             ]
             await query.message.reply_text(
-                f"Select reason for {escape_markdown(data, version=2)}:",
+                f"Select reason for {escape_markdown(data, version=2)}:\n\n"
+                "⚠️ Please message Pastor Auda directly for any reason that needs further explanation.",
                 reply_markup=InlineKeyboardMarkup(reason_kb),
                 parse_mode=ParseMode.MARKDOWN_V2
             )
@@ -302,7 +318,8 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_reply_markup(
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-    return
+        return
+
 
 
 
