@@ -252,9 +252,14 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reason = reason_options[reason_index] if reason_index < len(reason_options) else "Unknown"
         name = context.user_data.get("awaiting_reason_name")
         if name:
+            # Save the main reason (column F)
             session["reasons"][name] = reason
+
+            # ✅ Prompt for additional details (column G)
             context.user_data["awaiting_reason"] = name
-            await query.message.reply_text("Please specify. (Put N/A if no additional explanation needed)")
+            await query.message.reply_text(
+                f"Please provide additional details for {name} (or type N/A if none):"
+            )
         return
 
     # Member selection
@@ -301,6 +306,26 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
         return
+async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    text = update.message.text
+    label = context.user_data.get("label")
+    session = user_sessions.get((user_id, label))
+    if not session:
+        return
+
+    # Capture extra details if user was asked to specify
+    awaiting_name = context.user_data.get("awaiting_reason")
+    if awaiting_name:
+        if "details" not in session:
+            session["details"] = {}
+        session["details"][awaiting_name] = text  # <-- this becomes extra (column G)
+
+        # Clear awaiting flags
+        context.user_data.pop("awaiting_reason", None)
+        context.user_data.pop("awaiting_reason_name", None)
+
+        await update.message.reply_text(f"✅ Details saved for {awaiting_name}.")
 
 
 # 🔹 Submit attendance
