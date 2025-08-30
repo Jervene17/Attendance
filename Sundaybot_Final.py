@@ -113,40 +113,46 @@ def build_attendance_prompt(group, members, label):
 
 
 # 🔹 Main: send attendance prompt
-async def send_attendance_prompt(user_id, context, label, members, group=None):
-    group = USER_GROUPS[user_id]
+async def send_attendance_prompt(user_id, context, label, group=None):
+    # Resolve group
+    group = group or USER_GROUPS.get(user_id)
+    if not group:
+        print(f"[SKIP] No group found for user {user_id}")
+        return
 
-    # Skip prompting Visitors for Predawn and Wednesday
+    # Skip prompting Visitors for certain services
     if group == "Visitors" and label in ["Predawn", "Wednesday", "Friday"]:
         print(f"[SKIP] Skipping Visitors group for {label}")
         return
 
-    members = MEMBER_LISTS[group][:]
+    # Base member list
+    members = MEMBER_LISTS.get(group, [])[:]
 
-    # Apply exclusions (only if not Visitors)
+    # Apply exclusions (only for non-Visitors)
     if group != "Visitors":
         excluded = EXCLUSIONS.get(label, {}).get(group, [])
         members = [m for m in members if m not in excluded]
 
-    # ✅ Start session (store in context.bot_data so it persists)
+    # ✅ Start session (store in bot_data so it persists across restarts)
     sessions = context.bot_data.setdefault("user_sessions", {})
     sessions[(user_id, label)] = {
         "group": group,
         "label": label,
-        "members": members[:],       # existing members
+        "members": members,
         "selected": [],
         "reasons": {},
         "visitors": [],
-        "newcomers": []              # track manually added newcomers only
+        "newcomers": []   # track manually added newcomers only
     }
     context.user_data["label"] = label
 
+    # Find private chat
     chat_id = context.bot_data.get("user_chats", {}).get(user_id)
     if not chat_id:
         print(f"[SKIP] No private chat for user {user_id}")
         return
 
-    # 🔹 Use helper for text + keyboard
+    # 🔹 Build message and keyboard
     prompt_text, keyboard = build_attendance_prompt(group, members, label)
 
     # Send message
