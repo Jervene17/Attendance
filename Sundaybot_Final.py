@@ -260,7 +260,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ Please message Pastor Auda directly for any reason that needs further explanation."
         )
 
-        # Refresh main member keyboard so user can continue selecting
+        # Refresh member keyboard so user can continue selecting names
         keyboard = [
             [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
             for m in session["members"]
@@ -280,7 +280,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             session["selected"].append(data)
             session["members"].remove(data)
 
-        # Only non-Visitors require a reason
+        # Non-Visitors need to select reason next
         if session["group"] != "Visitors":
             context.user_data["awaiting_reason_name"] = data
             reason_options = [
@@ -306,7 +306,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.MARKDOWN_V2
             )
         else:
-            # Refresh Visitors keyboard
+            # Visitors: just refresh member keyboard
             keyboard = [
                 [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
                 for m in session["members"]
