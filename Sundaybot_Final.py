@@ -207,7 +207,6 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
 
-
 # 🔹 Handle inline button presses
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -215,6 +214,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
+    # Extract label from callback_data if present
     label = context.user_data.get("label")
     if "|" in data:
         label, data = data.split("|", 1)
@@ -233,7 +233,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update_progress(user_id, context)
         return
 
-    # NOT_LISTED
+    # NOT_LISTED (Visitor)
     elif data == "NOT_LISTED":
         context.user_data["awaiting_visitor"] = True
         await query.message.reply_text("Enter the name of the visitor who attended:")
@@ -245,54 +245,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("Enter newcomer name:")
         return
 
-    # Member clicked
-    elif data in session["members"]:
-        if data not in session["selected"]:
-            session["selected"].append(data)
-        # Do NOT remove yet; wait until reason is selected
-        # session["members"].remove(data)
-
-        if session["group"] != "Visitors":
-            # Non-Visitor: show reason inline buttons by editing the same message
-            context.user_data["awaiting_reason_name"] = data
-            reason_options = [
-                "Family Emergency",
-                "No Fare money",
-                "Sick",
-                "Taking care of a loved one",
-                "Work related",
-                "Far from onsite without Electricity/Internet",
-                "Did not wake up early",
-                "Need to relay to Headleader",
-                "Others"
-            ]
-            context.user_data["reason_choices"] = reason_options
-            reason_kb = [
-                [InlineKeyboardButton(reason, callback_data=f"{label}|REASON_{i}")]
-                for i, reason in enumerate(reason_options)
-            ]
-            await query.edit_message_text(
-                text=f"Select reason for {escape_markdown(data, version=2)}:\n\n"
-                     "⚠️ Please message Pastor Auda directly for any reason that needs further explanation.",
-                reply_markup=InlineKeyboardMarkup(reason_kb),
-                parse_mode=ParseMode.MARKDOWN_V2
-            )
-        else:
-            # Visitor: refresh member keyboard
-            keyboard = [
-                [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
-                for m in session["members"]
-            ]
-            keyboard += [
-                [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
-                [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
-            ]
-            await query.edit_message_reply_markup(
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        return
-
-    # Reason selected
+    # Reason selection (REASON_x)
     elif data.startswith("REASON_"):
         reason_index = int(data.split("_")[1])
         reason_options = context.user_data.get("reason_choices", [])
@@ -300,31 +253,55 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = context.user_data.get("awaiting_reason_name")
         if name:
             session["reasons"][name] = reason
-            # Now that reason is chosen, remove member from keyboard
-            if name in session["members"]:
-                session["members"].remove(name)
-
-        # Show Pastor Auda notice
-        await query.message.reply_text(
-            "⚠️ Please message Pastor Auda directly for any reason that needs further explanation."
-        )
-
-        # Refresh main member keyboard
-        if session["members"]:
-            keyboard = [
-                [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
-                for m in session["members"]
-            ]
-            keyboard += [
-                [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
-                [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
-            ]
-            await query.edit_message_reply_markup(
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        else:
-            await query.edit_message_text("✅ Everyone accounted for. You may now submit.")
+            context.user_data["awaiting_reason"] = name
+            await query.message.reply_text("Please specify. (Put N/A if no additional explanation needed)")
         return
+
+    # Member selection
+    elif data in session["members"]:
+        if data not in session["selected"]:
+            session["selected"].append(data)
+            session["members"].remove(data)
+
+            # Only non-Visitors require a reason
+            if session["group"] != "Visitors":
+                context.user_data["awaiting_reason_name"] = data
+                reason_options = [
+                    "Family Emergency",
+                    "No Fare money",
+                    "Sick",
+                    "Taking care of a loved one",
+                    "Work related",
+                    "Far from onsite without Electricity/Internet",
+                    "Did not wake up early",
+                    "Need to relay to Headleader",
+                    "Others"
+                ]
+                context.user_data["reason_choices"] = reason_options
+                reason_kb = [
+                    [InlineKeyboardButton(reason, callback_data=f"{label}|REASON_{i}")]
+                    for i, reason in enumerate(reason_options)
+                ]
+                await query.message.reply_text(
+                    f"Select reason for {escape_markdown(data, version=2)}:",
+                    reply_markup=InlineKeyboardMarkup(reason_kb),
+                    parse_mode="MarkdownV2"
+                )
+            else:
+                # Refresh Visitors keyboard
+                keyboard = [
+                    [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
+                    for m in session["members"]
+                ]
+                keyboard += [
+                    [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
+                    [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
+                ]
+                await query.edit_message_reply_markup(
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+        return
+
 
 # 🔹 Submit attendance
 async def submit_attendance(user_id, context, query):
@@ -334,12 +311,11 @@ async def submit_attendance(user_id, context, query):
         await query.edit_message_text("ℹ️ No active session found.")
         return
 
-    # Absentees: log both reason and custom details
+    # Absentees
     selected_absentees = [
         {
             "name": name,
-            "reason": session["reasons"].get(name, "N/A"),          # selected reason
-            "extra": session.get("details", {}).get(name, ""),      # custom text for Details column
+            "reason": session["reasons"].get(name, ""),
             "department": session["group"]
         }
         for name in session["selected"]
@@ -347,30 +323,20 @@ async def submit_attendance(user_id, context, query):
 
     # Newcomers
     newcomers = [
-        {
-            "name": n,
-            "reason": "NC",
-            "extra": session.get("details", {}).get(n, ""),         # optional details for newcomers
-            "department": "Newcomers"
-        }
+        {"name": n, "reason": "NC", "department": "Newcomers"}
         for n in session.get("newcomers", [])
     ]
 
     # Visitors
     visitors = [
-        {
-            "name": v.replace("Visitor - ", ""),
-            "reason": "",
-            "extra": "",
-            "department": "Visitors"
-        }
+        {"name": v.replace("Visitor - ", ""), "reason": "", "department": "Visitors"}
         for v in session.get("visitors", [])
     ]
 
     # Combine all entries
     all_entries = selected_absentees + newcomers + visitors
     if not all_entries:
-        all_entries = [{"name": "ALL ACCOUNTED", "reason": "", "extra": "", "department": session["group"]}]
+        all_entries = [{"name": "ALL ACCOUNTED", "reason": "", "department": session["group"]}]
 
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
     data = {
