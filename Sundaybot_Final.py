@@ -315,28 +315,39 @@ async def submit_attendance(user_id, context, query):
     selected_absentees = [
         {
             "name": name,
-            "reason": session["reasons"].get(name, ""),
-            "department": session["group"]
+            "reason": session["reasons"].get(name, ""),   # Column F
+            "department": session["group"],              # Column D
+            "extra": session.get("details", {}).get(name, "")  # Column G
         }
         for name in session["selected"]
     ]
 
     # Newcomers
     newcomers = [
-        {"name": n, "reason": "NC", "department": "Newcomers"}
+        {
+            "name": n,
+            "reason": "NC",
+            "department": "Newcomers",
+            "extra": session.get("details", {}).get(n, "")
+        }
         for n in session.get("newcomers", [])
     ]
 
     # Visitors
     visitors = [
-        {"name": v.replace("Visitor - ", ""), "reason": "", "department": "Visitors"}
+        {
+            "name": v.replace("Visitor - ", ""),
+            "reason": "",
+            "department": "Visitors",
+            "extra": session.get("details", {}).get(v, "")
+        }
         for v in session.get("visitors", [])
     ]
 
     # Combine all entries
     all_entries = selected_absentees + newcomers + visitors
     if not all_entries:
-        all_entries = [{"name": "ALL ACCOUNTED", "reason": "", "department": session["group"]}]
+        all_entries = [{"name": "ALL ACCOUNTED", "reason": "", "department": session["group"], "extra": ""}]
 
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
     data = {
@@ -378,12 +389,11 @@ async def submit_attendance(user_id, context, query):
     except Exception as e:
         await query.edit_message_text(f"❌ Submission failed: {e}")
 
-    # ✅ Always clear this user’s session at the very end
+    # Clear this user’s session
     user_sessions.pop((user_id, label), None)
 
-    # Update group progress after submission
+    # Update group progress
     await update_progress(user_id, context)
-
 
 # 🔹 Broadcast attendance prompts
 async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE, label: str):
