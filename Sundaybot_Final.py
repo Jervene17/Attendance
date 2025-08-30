@@ -249,7 +249,8 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data in session["members"]:
         if data not in session["selected"]:
             session["selected"].append(data)
-            session["members"].remove(data)
+        # Do NOT remove yet; wait until reason is selected
+        # session["members"].remove(data)
 
         if session["group"] != "Visitors":
             # Non-Visitor: show reason inline buttons by editing the same message
@@ -293,39 +294,37 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Reason selected
     elif data.startswith("REASON_"):
-     reason_index = int(data.split("_")[1])
-    reason_options = context.user_data.get("reason_choices", [])
-    reason = reason_options[reason_index] if reason_index < len(reason_options) else "Unknown"
-    name = context.user_data.get("awaiting_reason_name")
-    if name:
-        session["reasons"][name] = reason
-        # Now that reason is chosen, remove member from keyboard
-        if name in session["members"]:
-            session["members"].remove(name)
+        reason_index = int(data.split("_")[1])
+        reason_options = context.user_data.get("reason_choices", [])
+        reason = reason_options[reason_index] if reason_index < len(reason_options) else "Unknown"
+        name = context.user_data.get("awaiting_reason_name")
+        if name:
+            session["reasons"][name] = reason
+            # Now that reason is chosen, remove member from keyboard
+            if name in session["members"]:
+                session["members"].remove(name)
 
-    # Show Pastor Auda notice
-    await query.message.reply_text(
-        "⚠️ Please message Pastor Auda directly for any reason that needs further explanation."
-    )
-
-    # Refresh main member keyboard
-    if session["members"]:
-        keyboard = [
-            [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
-            for m in session["members"]
-        ]
-        keyboard += [
-            [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
-            [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
-        ]
-        await query.edit_message_reply_markup(
-            reply_markup=InlineKeyboardMarkup(keyboard)
+        # Show Pastor Auda notice
+        await query.message.reply_text(
+            "⚠️ Please message Pastor Auda directly for any reason that needs further explanation."
         )
-    else:
-        await query.edit_message_text("✅ Everyone accounted for. You may now submit.")
-    return
 
-
+        # Refresh main member keyboard
+        if session["members"]:
+            keyboard = [
+                [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
+                for m in session["members"]
+            ]
+            keyboard += [
+                [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
+                [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
+            ]
+            await query.edit_message_reply_markup(
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        else:
+            await query.edit_message_text("✅ Everyone accounted for. You may now submit.")
+        return
 
 # 🔹 Submit attendance
 async def submit_attendance(user_id, context, query):
