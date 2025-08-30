@@ -92,19 +92,21 @@ EXCLUSIONS = {
 
 # 🔹 Helper: build prompt text + keyboard
 def build_attendance_prompt(group, members, label):
+    # Decide prompt text
     if group in ["HQ", "Visitors"]:
         prompt_text = f"Who attended this {label}?"
     else:
         prompt_text = f"Who did you miss this {label}?"
 
-    keyboard = [[InlineKeyboardButton(m, callback_data=m)] for m in members]
+    # Build keyboard with label prefixed to callback_data
+    keyboard = [[InlineKeyboardButton(m, callback_data=f"{label}|{m}")] for m in members]
 
     if group == "Visitors":
-        keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data="NOT_LISTED")]]
+        keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data=f"{label}|NOT_LISTED")]]
     elif group != "HQ":
-        keyboard += [[InlineKeyboardButton("➕ Add Newcomer", callback_data="ADD_NEWCOMER")]]
+        keyboard += [[InlineKeyboardButton("➕ Add Newcomer", callback_data=f"{label}|ADD_NEWCOMER")]]
 
-    keyboard += [[InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data="ALL_ACCOUNTED")]]
+    keyboard += [[InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]]
 
     return prompt_text, InlineKeyboardMarkup(keyboard)
 
