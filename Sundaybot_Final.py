@@ -199,6 +199,14 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reason = update.message.text.strip()
         session["reasons"][name] = reason
         await update.message.reply_text(f"✅ Reason recorded for {name}.")
+    # Handle free-form extra details (absent.extra)
+    
+    elif context.user_data.get("awaiting_extra"):
+        name = context.user_data.pop("awaiting_extra")
+        extra = update.message.text.strip()
+        session.setdefault("details", {})  # make sure dict exists
+        session["details"][name] = extra
+        await update.message.reply_text(f"✅ Details saved for {name}")
 
     # 🔹 Refresh keyboard with label-prefixed callback_data
     if session["members"]:
@@ -252,15 +260,17 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reason = reason_options[reason_index] if reason_index < len(reason_options) else "Unknown"
         name = context.user_data.get("awaiting_reason_name")
         if name:
-            # Save the main reason (column F)
+        # Save the main reason (column F)
             session["reasons"][name] = reason
 
-            # ✅ Prompt for additional details (column G)
-            context.user_data["awaiting_reason"] = name
-            await query.message.reply_text(
-                f"Please provide additional details for {name} (or type N/A if none):"
-            )
+        # ✅ Prompt for additional details (column G)
+        context.user_data["awaiting_extra"] = name
+        await query.message.reply_text(
+            f"Please provide additional details for {name} (or type N/A if none):"
+        )
+    # return here is at the same level as elif, not inside if
         return
+
 
     # Member selection
     elif data in session["members"]:
