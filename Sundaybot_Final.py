@@ -128,14 +128,15 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
 
     # ✅ Start session
     user_sessions[(user_id, label)] = {
-        "group": group,
-        "label": label,
-        "members": members[:],
-        "selected": [],
-        "reasons": {},
-        "visitors": [],
-        "newcomers": [],
-    }
+    "group": group,
+    "label": label,
+    "members": members[:],
+    "selected": [],
+    "reasons": {},     # stores the selected reason (predefined or Others)
+    "details": {},     # stores the custom text for all reasons
+    "visitors": [],
+    "newcomers": []
+}
 
     context.user_data["label"] = label
 
