@@ -156,11 +156,8 @@ async def send_attendance_prompt(user_id, context, label, group=None):
     prompt_text, keyboard = build_attendance_prompt(group, members, label)
 
     # Send message
-    await context.bot.send_message(
-        chat_id,
-        text=prompt_text,
-        reply_markup=keyboard
-    )
+    await send_attendance_prompt(user_id, context, label)
+
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
