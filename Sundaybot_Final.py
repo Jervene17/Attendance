@@ -409,43 +409,45 @@ async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYP
         for uid in USER_GROUPS
     ]
 
-    # Construct initial progress text
+    # Initial progress message
     initial_text = f"🟡 0/{total} submitted. Still waiting for: {', '.join(waiting_users)}"
     escaped_text = escape_markdown(initial_text, version=2)
 
-    # Send initial progress message
     msg = await context.bot.send_message(
         chat_id,
         text=escaped_text,
         parse_mode=ParseMode.MARKDOWN_V2
     )
 
-    # ✅ Store progress in bot_data
+    # Store progress tied to this label
     context.bot_data["progress"] = {
         "message_id": msg.message_id,
         "chat_id": chat_id,
         "submitted": submitted_users,
-        "label": label,   # ✅ tie progress to a specific label/session
+        "label": label
     }
 
-    # ✅ Prepare user_sessions for each user
+    # Prepare user_sessions and send prompts
     sessions = context.bot_data.setdefault("user_sessions", {})
     for user_id in USER_GROUPS:
+        # Only send to users who have done /start
         if user_id not in context.bot_data.get("user_chats", {}):
+            print(f"[SKIP] User {user_id} has no private chat")
             continue
 
-        # Initialize a session for each user+label
+        # Initialize session
         sessions[(user_id, label)] = {
             "group": USER_GROUPS[user_id],
             "label": label,
+            "members": MEMBER_LISTS.get(USER_GROUPS[user_id], [])[:],
             "selected": [],
             "reasons": {},
             "newcomers": [],
             "visitors": []
         }
 
-        await send_attendance_prompt(user_id, context, label, MEMBER_LISTS[USER_GROUPS[user_id]])
-
+        # Send attendance prompt
+        await send_attendance_prompt(user_id, context, label)
 
 
 async def update_progress(user_id, context):
