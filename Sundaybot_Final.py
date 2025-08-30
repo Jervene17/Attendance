@@ -312,11 +312,12 @@ async def submit_attendance(user_id, context, query):
         await query.edit_message_text("ℹ️ No active session found.")
         return
 
-    # Absentees
+    # Absentees: log both reason and custom details
     selected_absentees = [
         {
             "name": name,
-            "reason": session["reasons"].get(name, ""),
+            "reason": session["reasons"].get(name, "N/A"),          # selected reason
+            "extra": session.get("details", {}).get(name, ""),      # custom text for Details column
             "department": session["group"]
         }
         for name in session["selected"]
@@ -324,20 +325,30 @@ async def submit_attendance(user_id, context, query):
 
     # Newcomers
     newcomers = [
-        {"name": n, "reason": "NC", "department": "Newcomers"}
+        {
+            "name": n,
+            "reason": "NC",
+            "extra": session.get("details", {}).get(n, ""),         # optional details for newcomers
+            "department": "Newcomers"
+        }
         for n in session.get("newcomers", [])
     ]
 
     # Visitors
     visitors = [
-        {"name": v.replace("Visitor - ", ""), "reason": "", "department": "Visitors"}
+        {
+            "name": v.replace("Visitor - ", ""),
+            "reason": "",
+            "extra": "",
+            "department": "Visitors"
+        }
         for v in session.get("visitors", [])
     ]
 
     # Combine all entries
     all_entries = selected_absentees + newcomers + visitors
     if not all_entries:
-        all_entries = [{"name": "ALL ACCOUNTED", "reason": "", "department": session["group"]}]
+        all_entries = [{"name": "ALL ACCOUNTED", "reason": "", "extra": "", "department": session["group"]}]
 
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
     data = {
