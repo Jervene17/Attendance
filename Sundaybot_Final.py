@@ -441,8 +441,8 @@ async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYP
             "visitors": []
         }
 
-        # Send attendance prompt (keyboard is fresh because session is new)
-        await send_attendance_prompt(user_id, context.bot, context, label)
+        await send_attendance_prompt(user_id, context, label, MEMBER_LISTS[USER_GROUPS[user_id]])
+
 
 
 async def update_progress(user_id, context):
