@@ -170,32 +170,36 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ No active session found for this prompt.")
         return
 
+    # Handle custom reason for "Others"
     if context.user_data.get("awaiting_reason_custom"):
         name = context.user_data.pop("awaiting_reason_custom")
         custom_reason = update.message.text.strip()
         session["reasons"][name] = custom_reason
         await update.message.reply_text(f"✅ Reason recorded for {name}: {custom_reason}")
 
+    # Handle visitor entry
     elif context.user_data.get("awaiting_visitor"):
         name = update.message.text.strip()
         session["visitors"].append(f"Visitor - {name}")
         del context.user_data["awaiting_visitor"]
         await update.message.reply_text(f"✅ Added visitor: {name}")
 
+    # Handle newcomer entry
     elif context.user_data.get("awaiting_newcomer"):
         name = update.message.text.strip()
         session["newcomers"].append(name)
-        session["reasons"][name] = ""
+        session["reasons"][name] = ""  # blank reason
         del context.user_data["awaiting_newcomer"]
         await update.message.reply_text(f"✅ Added newcomer: {name}")
 
+    # Handle free-form reason
     elif context.user_data.get("awaiting_reason"):
         name = context.user_data.pop("awaiting_reason")
         reason = update.message.text.strip()
         session["reasons"][name] = reason
         await update.message.reply_text(f"✅ Reason recorded for {name}.")
 
-    # Refresh keyboard if there are still members
+    # 🔹 Refresh keyboard with label-prefixed callback_data
     if session["members"]:
         prompt, keyboard = build_attendance_prompt(session["group"], session["members"], label)
         await update.message.reply_text(prompt, reply_markup=keyboard)
@@ -210,6 +214,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
+    # Extract label from callback_data if present
     label = context.user_data.get("label")
     if "|" in data:
         label, data = data.split("|", 1)
@@ -220,9 +225,82 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("⚠️ No active session found for this prompt.")
         return
 
-    # ... handle all button cases here ...
-    # (ALL_ACCOUNTED, NOT_LISTED, ADD_NEWCOMER, REASON_x, member selection)
-    # Logic same as original script
+    # ALL_ACCOUNTED
+    if data == "ALL_ACCOUNTED":
+        await submit_attendance(user_id, context, query)
+        if "progress" in context.bot_data:
+            context.bot_data["progress"]["submitted"].add(user_id)
+            await update_progress(user_id, context)
+        return
+
+    # NOT_LISTED (Visitor)
+    elif data == "NOT_LISTED":
+        context.user_data["awaiting_visitor"] = True
+        await query.message.reply_text("Enter the name of the visitor who attended:")
+        return
+
+    # ADD_NEWCOMER
+    elif data == "ADD_NEWCOMER":
+        context.user_data["awaiting_newcomer"] = True
+        await query.message.reply_text("Enter newcomer name:")
+        return
+
+    # Reason selection (REASON_x)
+    elif data.startswith("REASON_"):
+        reason_index = int(data.split("_")[1])
+        reason_options = context.user_data.get("reason_choices", [])
+        reason = reason_options[reason_index] if reason_index < len(reason_options) else "Unknown"
+        name = context.user_data.get("awaiting_reason_name")
+        if name:
+            session["reasons"][name] = reason
+            context.user_data["awaiting_reason"] = name
+            await query.message.reply_text("Please specify. (Put N/A if no additional explanation needed)")
+        return
+
+    # Member selection
+    elif data in session["members"]:
+        if data not in session["selected"]:
+            session["selected"].append(data)
+            session["members"].remove(data)
+
+            # Only non-Visitors require a reason
+            if session["group"] != "Visitors":
+                context.user_data["awaiting_reason_name"] = data
+                reason_options = [
+                    "Family Emergency",
+                    "No Fare money",
+                    "Sick",
+                    "Taking care of a loved one",
+                    "Work related",
+                    "Far from onsite without Electricity/Internet",
+                    "Did not wake up early",
+                    "Need to relay to Headleader",
+                    "Others"
+                ]
+                context.user_data["reason_choices"] = reason_options
+                reason_kb = [
+                    [InlineKeyboardButton(reason, callback_data=f"{label}|REASON_{i}")]
+                    for i, reason in enumerate(reason_options)
+                ]
+                await query.message.reply_text(
+                    f"Select reason for {escape_markdown(data, version=2)}:",
+                    reply_markup=InlineKeyboardMarkup(reason_kb),
+                    parse_mode="MarkdownV2"
+                )
+            else:
+                # Refresh Visitors keyboard
+                keyboard = [
+                    [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
+                    for m in session["members"]
+                ]
+                keyboard += [
+                    [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
+                    [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
+                ]
+                await query.edit_message_reply_markup(
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+        return
 
 
 # 🔹 Submit attendance
@@ -233,9 +311,78 @@ async def submit_attendance(user_id, context, query):
         await query.edit_message_text("ℹ️ No active session found.")
         return
 
-    # Process absentees, newcomers, visitors and send webhook
-    # Clear session at the end
+    # Absentees
+    selected_absentees = [
+        {
+            "name": name,
+            "reason": session["reasons"].get(name, ""),
+            "department": session["group"]
+        }
+        for name in session["selected"]
+    ]
+
+    # Newcomers
+    newcomers = [
+        {"name": n, "reason": "NC", "department": "Newcomers"}
+        for n in session.get("newcomers", [])
+    ]
+
+    # Visitors
+    visitors = [
+        {"name": v.replace("Visitor - ", ""), "reason": "", "department": "Visitors"}
+        for v in session.get("visitors", [])
+    ]
+
+    # Combine all entries
+    all_entries = selected_absentees + newcomers + visitors
+    if not all_entries:
+        all_entries = [{"name": "ALL ACCOUNTED", "reason": "", "department": session["group"]}]
+
+    current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    data = {
+        "group": session["group"],
+        "label": session["label"],
+        "date": current_date,
+        "absentees": all_entries,
+        "chat_id": query.message.chat.id,
+        "username": query.from_user.username or USER_NAMES.get(user_id, "Unknown")
+    }
+
+    try:
+        requests.post(WEBHOOK_URL, json=data)
+        await query.edit_message_text("✅ Attendance submitted.")
+
+        # Sunday special message
+        today = datetime.datetime.now().strftime("%A")
+        entries_for_message = [item for item in all_entries if item["name"] != "ALL ACCOUNTED"]
+        if today == "Sunday" and entries_for_message:
+            absentees_text_list = []
+            for item in entries_for_message:
+                name = item["name"]
+                reason = item.get("reason", "")
+                line = f"{name}: {reason if reason else 'N/A'}"
+                escaped_line = escape_markdown(line, version=2)
+                absentees_text_list.append("• " + escaped_line)
+            message = escape_markdown("📋 Sunday Absentees:\n", version=2) + "\n".join(absentees_text_list)
+            target_user_ids = [439340490]  # Replace with actual IDs
+            for uid in target_user_ids:
+                try:
+                    await context.bot.send_message(
+                        chat_id=uid,
+                        text=message,
+                        parse_mode=ParseMode.MARKDOWN_V2
+                    )
+                except Exception as e:
+                    print(f"❌ Failed to send absentees to {uid}: {e}")
+
+    except Exception as e:
+        await query.edit_message_text(f"❌ Submission failed: {e}")
+
+    # ✅ Always clear this user’s session at the very end
     user_sessions.pop((user_id, label), None)
+
+    # Update group progress after submission
+    await update_progress(user_id, context)
 
 
 # 🔹 Broadcast attendance prompts
