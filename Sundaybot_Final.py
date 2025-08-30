@@ -264,44 +264,46 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             session["selected"].append(data)
             session["members"].remove(data)
 
-            # Only non-Visitors require a reason
-            if session["group"] != "Visitors":
-                context.user_data["awaiting_reason_name"] = data
-                reason_options = [
-                    "Family Emergency",
-                    "No Fare money",
-                    "Sick",
-                    "Taking care of a loved one",
-                    "Work related",
-                    "Far from onsite without Electricity/Internet",
-                    "Did not wake up early",
-                    "Need to relay to Headleader",
-                    "Others"
-                ]
-                context.user_data["reason_choices"] = reason_options
-                reason_kb = [
-                    [InlineKeyboardButton(reason, callback_data=f"{label}|REASON_{i}")]
-                    for i, reason in enumerate(reason_options)
-                ]
-                await query.message.reply_text(
-                    f"Select reason for {escape_markdown(data, version=2)}:",
-                    reply_markup=InlineKeyboardMarkup(reason_kb),
-                    parse_mode="MarkdownV2"
-                )
-            else:
-                # Refresh Visitors keyboard
-                keyboard = [
-                    [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
-                    for m in session["members"]
-                ]
-                keyboard += [
-                    [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
-                    [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
-                ]
-                await query.edit_message_reply_markup(
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-        return
+        # Only non-Visitors require a reason
+        if session["group"] != "Visitors":
+            context.user_data["awaiting_reason_name"] = data
+            reason_options = [
+                "Family Emergency",
+                "No Fare money",
+                "Sick",
+                "Taking care of a loved one",
+                "Work related",
+                "Far from onsite without Electricity/Internet",
+                "Did not wake up early",
+                "Need to relay to Headleader",
+                "Others"
+            ]
+            context.user_data["reason_choices"] = reason_options
+            reason_kb = [
+                [InlineKeyboardButton(reason, callback_data=f"{label}|REASON_{i}")]
+                for i, reason in enumerate(reason_options)
+            ]
+            await query.message.reply_text(
+                f"Select reason for {escape_markdown(data, version=2)}:\n\n"
+                "⚠️ Please message Pastor Auda directly for any reason that needs further explanation.",
+                reply_markup=InlineKeyboardMarkup(reason_kb),
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+        else:
+            # Refresh Visitors keyboard
+            keyboard = [
+                [InlineKeyboardButton(f"{label}|{m}", callback_data=f"{label}|{m}")]
+                for m in session["members"]
+            ]
+            keyboard += [
+                [InlineKeyboardButton(f"{label}|NOT_LISTED", callback_data=f"{label}|NOT_LISTED")],
+                [InlineKeyboardButton(f"{label}|ALL_ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]
+            ]
+            await query.edit_message_reply_markup(
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+    return
+
 
 
 # 🔹 Submit attendance
