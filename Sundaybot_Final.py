@@ -11,7 +11,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler,
-    MessageHandler, ContextTypes, filters
+    MessageHandler, ContextTypes, filters, PicklePersistence
 )
 from telegram.helpers import escape_markdown
 
@@ -22,6 +22,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 print("DEBUG: Railway BOT_TOKEN =", repr(os.getenv("BOT_TOKEN")))
 
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+
+persistence = PicklePersistence(filepath="bot_persistence.pkl")
 
 user_sessions = {}
 
@@ -48,7 +50,7 @@ USER_NAMES = {
     7681981308: "D Rue",
     2016438287: "Divine",
     544095264: "MCor",
-    515714808: "Jervene",
+    515714808: "M Jervene",
     2120840431: "Andrea",
     519557915: "M Rose"
 }
@@ -111,11 +113,11 @@ def build_attendance_prompt(group, members, label):
 
 
 # 🔹 Main: send attendance prompt
-async def send_attendance_prompt(user_id, bot: Bot, context, label):
+async def send_attendance_prompt(user_id, context, label, members, group=None):
     group = USER_GROUPS[user_id]
 
     # Skip prompting Visitors for Predawn and Wednesday
-    if group == "Visitors" and label in ["Predawn", "Wednesday","Friday"]:
+    if group == "Visitors" and label in ["Predawn", "Wednesday", "Friday"]:
         print(f"[SKIP] Skipping Visitors group for {label}")
         return
 
@@ -126,8 +128,9 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
         excluded = EXCLUSIONS.get(label, {}).get(group, [])
         members = [m for m in members if m not in excluded]
 
-    # ✅ Start session
-    user_sessions[(user_id, label)] = {
+    # ✅ Start session (store in context.bot_data so it persists)
+    sessions = context.bot_data.setdefault("user_sessions", {})
+    sessions[(user_id, label)] = {
         "group": group,
         "label": label,
         "members": members[:],       # existing members
@@ -137,6 +140,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
         "newcomers": []              # track manually added newcomers only
     }
     context.user_data["label"] = label
+
     chat_id = context.bot_data.get("user_chats", {}).get(user_id)
     if not chat_id:
         print(f"[SKIP] No private chat for user {user_id}")
@@ -146,11 +150,12 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
     prompt_text, keyboard = build_attendance_prompt(group, members, label)
 
     # Send message
-    await bot.send_message(
+    await context.bot.send_message(
         chat_id,
         text=prompt_text,
         reply_markup=keyboard
     )
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -167,7 +172,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     label = context.user_data.get("label")
-    session = user_sessions.get((user_id, label))   # use the tuple key
+    sessions = context.bot_data.get("user_sessions", {})
+    session = sessions.get((user_id, label))
     if not session:
         await update.message.reply_text("⚠️ No active session found for this prompt.")
         return
@@ -182,7 +188,7 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ✅ Handle visitor entry
     elif context.user_data.get("awaiting_visitor"):
         name = update.message.text.strip()
-        session["visitors"].append(f"Visitor - {name}")   # renamed
+        session["visitors"].append(f"Visitor - {name}")
         del context.user_data["awaiting_visitor"]
         await update.message.reply_text(f"✅ Added visitor: {name}")
 
@@ -201,12 +207,12 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session["reasons"][name] = reason
         await update.message.reply_text(f"✅ Reason recorded for {name}.")
 
-        # ✅ Refresh keyboard
+    # 🔄 Refresh keyboard or finalize
     if session["members"]:
         prompt, keyboard = build_attendance_prompt(session["group"], session["members"], label)
         await update.message.reply_text(prompt, reply_markup=keyboard)
+    else:
         await update.message.reply_text("✅ Everyone accounted for. You may now submit.")
-
 
 
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -222,7 +228,10 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         label = context.user_data.get("label")
 
-    session = user_sessions.get((user_id, label))
+    # ✅ pull from persistent sessions
+    sessions = context.bot_data.setdefault("user_sessions", {})
+    session = sessions.get((user_id, label))
+
     if not session:
         await query.edit_message_text("⚠️ No active session found for this prompt.")
         return
@@ -232,6 +241,9 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if "progress" in context.bot_data:
             context.bot_data["progress"]["submitted"].add(user_id)
             await update_progress(user_id, context)
+
+        # 🔄 refresh keyboard to disable further clicks
+        await query.edit_message_reply_markup(reply_markup=None)
         return
 
     elif data == "NOT_LISTED":
@@ -259,7 +271,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             session["members"].remove(data)
 
         if session["group"] != "Visitors":
-            # Always ask for reason for all labels
+            # Always ask for reason
             context.user_data["awaiting_reason_name"] = data
             reason_options = [
                 "Family Emergency", "No Fare money", "Sick", "Taking care of a loved one",
@@ -277,7 +289,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="MarkdownV2"
             )
         else:
-            # Visitors: refresh main keyboard
+            # Visitors: 🔄 refresh main keyboard after selection
             keyboard = [[InlineKeyboardButton(m, callback_data=f"{label}|{m}")] for m in session["members"]]
             keyboard += [
                 [InlineKeyboardButton("🆕 Not Listed", callback_data=f"{label}|NOT_LISTED")],
@@ -288,9 +300,12 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def submit_attendance(user_id, context, query):
     label = context.user_data.get("label")
-    session = user_sessions.get((user_id, label))   # don't pop yet
+
+    # ✅ Pull from persisted sessions
+    sessions = context.bot_data.setdefault("user_sessions", {})
+    session = sessions.get((user_id, label))   # don't pop yet
     if not session:
-        await query.edit_message_text("ℹ️ No active session found.")
+        await query.edit_message_text("⚠️ Session mismatch. No active session found for this prompt.")
         return
 
     # Absentees
@@ -335,7 +350,7 @@ async def submit_attendance(user_id, context, query):
         requests.post(WEBHOOK_URL, json=data)
         await query.edit_message_text("✅ Attendance submitted.")
 
-        # Sunday special message
+        # Sunday special message (unchanged)
         today = datetime.datetime.now().strftime("%A")
         entries_for_message = [item for item in all_entries if item["name"] != "ALL ACCOUNTED"]
 
@@ -365,10 +380,20 @@ async def submit_attendance(user_id, context, query):
         await query.edit_message_text(f"❌ Submission failed: {e}")
 
     # ✅ always clear this user’s session at the very end
-    user_sessions.pop((user_id, label), None)
+    sessions.pop((user_id, label), None)
+
+    # ✅ Refresh keyboard after submission (if there are still members left)
+    if session.get("members"):
+        prompt, keyboard = build_attendance_prompt(session["group"], session["members"], label)
+        await context.bot.send_message(
+            chat_id=query.message.chat.id,
+            text=prompt,
+            reply_markup=keyboard
+        )
 
     # Update group progress after submission
     await update_progress(user_id, context)
+
 
 async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE, label: str):
     submitted_users = set()
@@ -392,13 +417,31 @@ async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYP
         parse_mode=ParseMode.MARKDOWN_V2
     )
 
-    # Store progress in bot_data
-    context.bot_data["progress"] = {"message_id": msg.message_id, "chat_id": chat_id, "submitted": submitted_users}
+    # ✅ Store progress in bot_data
+    context.bot_data["progress"] = {
+        "message_id": msg.message_id,
+        "chat_id": chat_id,
+        "submitted": submitted_users,
+        "label": label,   # ✅ tie progress to a specific label/session
+    }
 
-    # Send prompts to all users
+    # ✅ Prepare user_sessions for each user
+    sessions = context.bot_data.setdefault("user_sessions", {})
     for user_id in USER_GROUPS:
         if user_id not in context.bot_data.get("user_chats", {}):
             continue
+
+        # Initialize a session for each user+label
+        sessions[(user_id, label)] = {
+            "group": USER_GROUPS[user_id],
+            "label": label,
+            "selected": [],
+            "reasons": {},
+            "newcomers": [],
+            "visitors": []
+        }
+
+        # Send attendance prompt (keyboard is fresh because session is new)
         await send_attendance_prompt(user_id, context.bot, context, label)
 
 
@@ -407,11 +450,15 @@ async def update_progress(user_id, context):
     if not progress:
         return
 
+    # ✅ Ensure "submitted" exists
+    if "submitted" not in progress:
+        progress["submitted"] = set()
+
     progress["submitted"].add(user_id)
     total = len(USER_GROUPS)
     submitted = len(progress["submitted"])
 
-    # Escape waiting usernames
+    # ✅ Escape waiting usernames
     waiting = [
         escape_markdown(USER_NAMES.get(uid, f"User {uid}"), version=2)
         for uid in USER_GROUPS if uid not in progress["submitted"]
@@ -423,7 +470,6 @@ async def update_progress(user_id, context):
     else:
         text += "\n🎉 All users have submitted."
 
-    # Escape the entire text for MarkdownV2
     escaped_text = escape_markdown(text, version=2)
 
     try:
@@ -434,19 +480,23 @@ async def update_progress(user_id, context):
             parse_mode=ParseMode.MARKDOWN_V2
         )
     except Exception as e:
-        # Fallback: just send a plain text message if MarkdownV2 fails
+        # Fallback: just send plain text if MarkdownV2 fails
         print("❌ Failed to update progress message:", e)
         await context.bot.send_message(
             chat_id=progress["chat_id"],
-            text=text  # plain text fallback
+            text=text
         )
 
 
 async def restart_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    label = context.user_data.get("label")
-    if (user_id, label) in user_sessions:
-        user_sessions.pop((user_id, label))
+
+    # ✅ Find any active session(s) for this user
+    active_sessions = [(uid, lbl) for (uid, lbl) in user_sessions if uid == user_id]
+
+    if active_sessions:
+        for key in active_sessions:
+            user_sessions.pop(key, None)
         await update.message.reply_text("🔁 Your attendance session has been reset.")
     else:
         await update.message.reply_text("ℹ️ No active session to reset.")
@@ -457,7 +507,7 @@ async def wednesday(update, context): await broadcast_attendance(update, context
 async def friday(update, context): await broadcast_attendance(update, context, "Friday")
 
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).persistence(persistence).build()
 
     # Commands
     app.add_handler(CommandHandler("start", start))
