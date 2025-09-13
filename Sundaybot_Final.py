@@ -29,7 +29,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 user_sessions = {}
 
 # === Static Config ===
-USER_GROUPS = {
+USER_GROUP_MAP = {
     503493798: "FAMILY FEMALES",
     485107813: "CAREER MALES",
     707729145: "CAREER FEMALES 1",
@@ -38,11 +38,11 @@ USER_GROUPS = {
     2016438287: "CAMPUS FEMALES",
     544095264: "JS",
     515714808: "FAMILY MALES",
-    2120840431: "Visitors",
+    2120840431: "VISITORS",
     519557915: "HQ plus HL",
 }
 GROUP_MEMBERS = {}
-for uid, group in USER_GROUPS.items():
+for uid, group in USER_GROUP_MAP.items():
     GROUP_MEMBERS.setdefault(group.upper(), []).append(uid)
 
 USER_NAMES = {
@@ -116,7 +116,7 @@ def build_attendance_prompt(group, members, label):
 
 # 🔹 Main: send attendance prompt
 async def send_attendance_prompt(user_id, bot: Bot, context, label):
-    group = USER_GROUPS[user_id]
+    group = USER_GROUP_MAP.get(user_id, "").upper()
 
     # Skip prompting Visitors for Predawn, Wednesday, Friday
     if group == "Visitors" and label in ["Predawn", "Wednesday", "Friday"]:
@@ -500,14 +500,14 @@ async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # ✅ Define groups that need to submit
     if label.lower().startswith("sunday"):
-        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS," "CAMPUS FEMALES","FAMILY MALES","FAMILY FEMALES", "VISITORS"]
+        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS", "CAMPUS FEMALES","FAMILY MALES","FAMILY FEMALES", "VISITORS"]
     else:
-        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS," "CAMPUS FEMALES","FAMILY MALES","FAMILY FEMALES"]  # exclude Visitors
+        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS", "CAMPUS FEMALES","FAMILY MALES","FAMILY FEMALES"]  # exclude Visitors
 
     # ✅ Build submission pool (actual users)
     all_users = []
     for group in groups_to_include:
-        all_users.extend(USER_GROUPS[group])
+        all_users.extend(GROUP_MEMBERS[group.upper()])
 
     total = len(all_users)
 
@@ -561,7 +561,7 @@ async def update_progress(user_id, context):
         escape_markdown(USER_NAMES.get(uid, f"User {uid}"), version=2)
         for uid in progress["all_users"]
         if uid not in progress["submitted"]
-        and any(uid in USER_GROUPS[g] for g in active_groups)
+        and any(uid in GROUP_MEMBERS[g.upper()] for g in active_groups)
     ]
 
     text = f"✅ {submitted}/{total} submitted."
