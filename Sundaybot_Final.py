@@ -39,8 +39,11 @@ USER_GROUPS = {
     544095264: "JS",
     515714808: "FAMILY MALES",
     2120840431: "Visitors",
-    519557915: "HQ",
+    519557915: "HQ plus HL",
 }
+GROUP_MEMBERS = {}
+for uid, group in USER_GROUPS.items():
+    GROUP_MEMBERS.setdefault(group.upper(), []).append(uid)
 
 USER_NAMES = {
     503493798: "Fatima",
@@ -66,7 +69,7 @@ MEMBER_LISTS = {
     "JS": ["MCor", "Tita Merlita", "Grace", "Emeru"],
     "Visitors": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
                  "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
-    "HQ": ["PK", "M Ju Nara", "MA", "M Sarah", "Mjhay"],
+    "HQ plus HL": ["PK", "M Ju Nara", "MA", "M Sarah", "Mjhay","PA"],
 }
 
 EXCLUSIONS = {
@@ -93,7 +96,7 @@ EXCLUSIONS = {
 # 🔹 Helper: build prompt text + keyboard
 def build_attendance_prompt(group, members, label):
     # Decide prompt text
-    if group in ["HQ", "Visitors"]:
+    if group in ["Visitors"]:
         prompt_text = f"Who attended this {label}?"
     else:
         prompt_text = f"Who did you miss this {label}?"
@@ -412,7 +415,7 @@ async def submit_attendance(user_id, context, query):
     if not all_entries:
         all_entries = [{"name": "ALL ACCOUNTED", "reason": "", "department": session["group"], "extra": ""}]
 
-    current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    current_date = context.bot_data.get("service_date")
     data = {
         "group": session["group"],
         "label": session["label"],
@@ -426,7 +429,7 @@ async def submit_attendance(user_id, context, query):
         requests.post(WEBHOOK_URL, json=data)
         await query.edit_message_text("✅ Attendance submitted.")
     
-    # ✅ Remove all inline keyboards for this user
+        # ✅ Remove all inline keyboards for this user
         if "messages" in session:
             for msg in session["messages"]:
                 try:
@@ -437,21 +440,36 @@ async def submit_attendance(user_id, context, query):
                     )
                 except Exception as e:
                     print(f"❌ Failed to remove keyboard for message {msg.message_id}: {e}")
-            # optional: clear the messages list
             session["messages"].clear()
-        
-        # Sunday special message
+
+        # 📋 Sunday special message
         today = datetime.datetime.now().strftime("%A")
         entries_for_message = [item for item in all_entries if item["name"] != "ALL ACCOUNTED"]
-        if today == "Sunday" and entries_for_message:
+
+        if today == "Sunday":
             absentees_text_list = []
             for item in entries_for_message:
                 name = item["name"]
                 reason = item.get("reason", "")
-                line = f"{name}: {reason if reason else 'N/A'}"
+                extra = item.get("extra", "")
+
+                if extra and extra.upper() != "N/A":
+                    line = f"{name}: {reason if reason else 'N/A'} — {extra}"
+                else:
+                    line = f"{name}: {reason if reason else 'N/A'}"
+
                 escaped_line = escape_markdown(line, version=2)
                 absentees_text_list.append("• " + escaped_line)
-            message = escape_markdown("📋 Sunday Absentees:\n", version=2) + "\n".join(absentees_text_list)
+
+            if absentees_text_list:
+                header = escape_markdown(
+                    f"📋 Sunday Absentees ({context.bot_data.get('service_date', today)}):\n",
+                    version=2
+                )
+                message = header + "\n".join(absentees_text_list)
+            else:
+                message = f"✅ No absentees for {context.bot_data.get('service_date', today)}."
+
             target_user_ids = [439340490]  # Replace with actual IDs
             for uid in target_user_ids:
                 try:
@@ -475,20 +493,50 @@ async def submit_attendance(user_id, context, query):
 # 🔹 Broadcast attendance prompts
 async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE, label: str):
     submitted_users = set()
-    total = len(USER_GROUPS)
     chat_id = update.effective_chat.id
 
-    waiting_users = [escape_markdown(USER_NAMES.get(uid, f"User {uid}"), version=2) for uid in USER_GROUPS]
+    service_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    context.bot_data["service_date"] = service_date
+
+    # ✅ Define groups that need to submit
+    if label.lower().startswith("sunday"):
+        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS," "CAMPUS FEMALES","FAMILY MALES","FAMILY FEMALES", "VISITORS"]
+    else:
+        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS," "CAMPUS FEMALES","FAMILY MALES","FAMILY FEMALES"]  # exclude Visitors
+
+    # ✅ Build submission pool (actual users)
+    all_users = []
+    for group in groups_to_include:
+        all_users.extend(USER_GROUPS[group])
+
+    total = len(all_users)
+
+    # ✅ Waiting list only from chosen groups
+    waiting_users = [
+        escape_markdown(USER_NAMES.get(uid, f"User {uid}"), version=2)
+        for uid in all_users
+    ]
+
     initial_text = f"🟡 0/{total} submitted. Still waiting for: {', '.join(waiting_users)}"
     escaped_text = escape_markdown(initial_text, version=2)
     msg = await context.bot.send_message(chat_id, text=escaped_text, parse_mode=ParseMode.MARKDOWN_V2)
 
-    context.bot_data["progress"] = {"message_id": msg.message_id, "chat_id": chat_id, "submitted": submitted_users}
+    # ✅ Store session data
+    context.bot_data["progress"] = {
+        "message_id": msg.message_id,
+        "chat_id": chat_id,
+        "submitted": submitted_users,
+        "all_users": all_users,
+        "groups": groups_to_include,
+        "service_date": service_date,
+    }
 
-    for user_id in USER_GROUPS:
+    # ✅ Only send prompts to the filtered list
+    for user_id in all_users:
         if user_id not in context.bot_data.get("user_chats", {}):
             continue
         await send_attendance_prompt(user_id, context.bot, context, label)
+
 
 
 # 🔹 Update progress in group
@@ -497,11 +545,24 @@ async def update_progress(user_id, context):
     if not progress:
         return
 
+    # mark user as submitted
     progress["submitted"].add(user_id)
-    total = len(USER_GROUPS)
+
+    total = len(progress["all_users"])
     submitted = len(progress["submitted"])
-    waiting = [escape_markdown(USER_NAMES.get(uid, f"User {uid}"), version=2)
-               for uid in USER_GROUPS if uid not in progress["submitted"]]
+
+    # ✅ filter Visitors if today isn’t Sunday
+    today = datetime.datetime.now().strftime("%A")
+    active_groups = progress["groups"]
+    if today != "Sunday" and "VISITORS" in active_groups:
+        active_groups = [g for g in active_groups if g != "VISITORS"]
+
+    waiting = [
+        escape_markdown(USER_NAMES.get(uid, f"User {uid}"), version=2)
+        for uid in progress["all_users"]
+        if uid not in progress["submitted"]
+        and any(uid in USER_GROUPS[g] for g in active_groups)
+    ]
 
     text = f"✅ {submitted}/{total} submitted."
     if waiting:
