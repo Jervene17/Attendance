@@ -59,14 +59,14 @@ USER_NAMES = {
 }
 
 MEMBER_LISTS = {
-    "FAMILY FEMALES": ["Fatima", "Vangie", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa"],
-    "FAMILY MALES": ["Dcn Ian", "M Jervene", "Jessie", "Almen", "Dcn Probo"],
-    "CAREER MALES": ["Jabs", "Xander", "Franz", "Daniel", "Jiboy", "Venancio", "Iven"],
+    "FAMILY FEMALES": ["Fatima", "Vangie", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa","Hannah"],
+    "FAMILY MALES": ["Dcn Ian", "M Jervene", "Jessie", "Almen", "Dcn Probo","Fernan"],
+    "CAREER MALES": ["Jabs", "Xander", "Franz", "Daniel", "Jiboy", "Venancio", "Iven","Gideon"],
     "CAREER FEMALES 1": ["Shaja", "Grace", "Daryl", "Clarice", "Mia", "Aliza", "Anica"],
     "CAREER FEMALES 2": ["Mel", "Andrea", "Angel", "Inia", "M Rose", "Vicky", "Donna"],
-    "CAREER FEMALES 3": ["D Rue", "PP Bam", "Zhandra", "Trina", "Dr Kristine"],
+    "CAREER FEMALES 3": ["D Rue", "PP Bam", "Zhandra", "Trina", "Dr Kristine","Milca"],
     "CAMPUS FEMALES": ["Divine", "Marinell"],
-    "JS": ["MCor", "Tita Merlita", "Grace", "Emeru"],
+    "JS": ["MCor", "Tita Merlita", "Grace", "Emeru","Michelle","Edilyn","Raquel","Florelyn"],
     "Visitors": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
                  "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
     "HQ plus HL": ["PK", "M Ju Nara", "MA", "M Sarah", "Mjhay","PA"],
