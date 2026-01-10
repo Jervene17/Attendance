@@ -38,7 +38,7 @@ USER_GROUP_MAP = {
     2016438287: "CAMPUS FEMALES",
     544095264: "JS",
     2120840431: "VISITORS",
-    515714808: "HQ plus HL",
+    515714808: "HQ PLUS HL",
 }
 GROUP_MEMBERS = {}
 for uid, group in USER_GROUP_MAP.items():
@@ -67,7 +67,7 @@ MEMBER_LISTS = {
     "JS": ["MCor", "Tita Merlita", "Grace", "Emeru","Michelle","Edilyn","Raquel","Florelyn"],
     "VISITORS": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
                  "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
-    "HQ plus HL": ["PK", "M Ju Nara", "MA", "M Sarah", "Mjhay","PA"],
+    "HQ PLUS HL": ["PK", "M Ju Nara", "MA", "M Sarah", "Mjhay","PA"],
 }
 
 EXCLUSIONS = {
@@ -497,9 +497,9 @@ async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # ✅ Define groups that need to submit
     if label.lower().startswith("sunday"):
-        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS", "CAMPUS FEMALES","FAMILY", "VISITORS"]
+        groups_to_include = ["HQ PLUS HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS", "CAMPUS FEMALES","FAMILY", "VISITORS"]
     else:
-        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS", "CAMPUS FEMALES","FAMILY"]  # exclude Visitors
+        groups_to_include = ["HQ PLUS HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS", "CAMPUS FEMALES","FAMILY"]  # exclude Visitors
 
     # ✅ Build submission pool (actual users)
     all_users = []
