@@ -30,16 +30,15 @@ user_sessions = {}
 
 # === Static Config ===
 USER_GROUP_MAP = {
-    503493798: "FAMILY FEMALES",
+    503493798: "FAMILY",
     485107813: "CAREER MALES",
     707729145: "CAREER FEMALES 1",
     518836085: "CAREER FEMALES 2",
     7681981308: "CAREER FEMALES 3",
     2016438287: "CAMPUS FEMALES",
     544095264: "JS",
-    515714808: "FAMILY MALES",
     2120840431: "VISITORS",
-    519557915: "HQ plus HL",
+    515714808: "HQ plus HL",
 }
 GROUP_MEMBERS = {}
 for uid, group in USER_GROUP_MAP.items():
@@ -55,12 +54,11 @@ USER_NAMES = {
     544095264: "MCor",
     515714808: "Jervene",
     2120840431: "Andrea",
-    519557915: "M Rose",
+    
 }
 
 MEMBER_LISTS = {
-    "FAMILY FEMALES": ["Fatima", "Vangie", "M Ru", "Dcn Frances", "Shayne", "Dcn Issa","Hannah"],
-    "FAMILY MALES": ["Dcn Ian", "M Jervene", "Jessie", "Almen", "Dcn Probo","Fernan"],
+    "FAMILY": ["Fatima", "Vangie", "M Ru", "Dcns Frances", "Shayne", "Dcns Issa","Hannah","Dcn Ian", "M Jervene", "Jessie", "Almen", "Dcn Probo","Fernan"],
     "CAREER MALES": ["Jabs", "Xander", "Franz", "Daniel", "Jiboy", "Venancio", "Iven","Gideon"],
     "CAREER FEMALES 1": ["Shaja", "Grace", "Daryl", "Clarice", "Mia", "Aliza", "Anica"],
     "CAREER FEMALES 2": ["Mel", "Andrea", "Angel", "Inia", "M Rose", "Vicky", "Donna"],
@@ -77,7 +75,7 @@ EXCLUSIONS = {
         "CAREER FEMALES 2": ["Donna", "Vicky"],
         "Visitors": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
                      "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
-        "JS": ["Tita Merlita"],
+        "JS": ["Tita Merlita","Michelle","Edilyn","Raquel","Florelyn"],
     },
     "Wednesday": {
         "CAREER FEMALES 2": ["Donna", "Vicky"],
