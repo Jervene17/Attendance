@@ -498,9 +498,9 @@ async def broadcast_attendance(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # ✅ Define groups that need to submit
     if label.lower().startswith("sunday"):
-        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS", "CAMPUS FEMALES","FAMILY MALES","FAMILY FEMALES", "VISITORS"]
+        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS", "CAMPUS FEMALES","FAMILY", "VISITORS"]
     else:
-        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS", "CAMPUS FEMALES","FAMILY MALES","FAMILY FEMALES"]  # exclude Visitors
+        groups_to_include = ["HQ plus HL", "CAREER MALES", "CAREER FEMALES 1","CAREER FEMALES 2","CAREER FEMALES 3","JS", "CAMPUS FEMALES","FAMILY"]  # exclude Visitors
 
     # ✅ Build submission pool (actual users)
     all_users = []
