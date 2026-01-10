@@ -65,7 +65,7 @@ MEMBER_LISTS = {
     "CAREER FEMALES 3": ["D Rue", "PP Bam", "Zhandra", "Trina", "Dr Kristine","Milca"],
     "CAMPUS FEMALES": ["Divine", "Marinell"],
     "JS": ["MCor", "Tita Merlita", "Grace", "Emeru","Michelle","Edilyn","Raquel","Florelyn"],
-    "Visitors": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
+    "VISITORS": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
                  "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
     "HQ plus HL": ["PK", "M Ju Nara", "MA", "M Sarah", "Mjhay","PA"],
 }
@@ -73,19 +73,19 @@ MEMBER_LISTS = {
 EXCLUSIONS = {
     "Predawn": {
         "CAREER FEMALES 2": ["Donna", "Vicky"],
-        "Visitors": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
+        "VISITORS": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
                      "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
         "JS": ["Tita Merlita","Michelle","Edilyn","Raquel","Florelyn"],
     },
     "Wednesday": {
         "CAREER FEMALES 2": ["Donna", "Vicky"],
-        "Visitors": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
+        "VISITORS": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
                      "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
         "JS": ["Tita Merlita"],
     },
     "Friday": {
         "CAREER FEMALES 2": ["Donna", "Vicky"],
-        "Visitors": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
+        "VISITORS": ["Riza", "M Saeyoung", "Taiki", "Randrew Dela Cruz", "John Carlo Lucero",
                      "Cherry Ann", "Rhea Cho", "Gemma", "Yolly", "Weng"],
         "JS": ["Tita Merlita"],
     },
@@ -93,8 +93,7 @@ EXCLUSIONS = {
 
 # 🔹 Helper: build prompt text + keyboard
 def build_attendance_prompt(group, members, label):
-    # Decide prompt text
-    if group in ["Visitors"]:
+    if group == "VISITORS":
         prompt_text = f"Who attended this {label}?"
     else:
         prompt_text = f"Who did you miss this {label}?"
@@ -102,9 +101,9 @@ def build_attendance_prompt(group, members, label):
     # Build keyboard with label prefixed to callback_data
     keyboard = [[InlineKeyboardButton(m, callback_data=f"{label}|{m}")] for m in members]
 
-    if group == "Visitors":
+    if group == "VISITORS":
         keyboard += [[InlineKeyboardButton("🆕 Not Listed", callback_data=f"{label}|NOT_LISTED")]]
-    elif group != "HQ":
+    elif group != "HQ plus HL":
         keyboard += [[InlineKeyboardButton("➕ Add Newcomer", callback_data=f"{label}|ADD_NEWCOMER")]]
 
     keyboard += [[InlineKeyboardButton("✅ ALL ACCOUNTED", callback_data=f"{label}|ALL_ACCOUNTED")]]
@@ -116,14 +115,14 @@ def build_attendance_prompt(group, members, label):
 async def send_attendance_prompt(user_id, bot: Bot, context, label):
     group = USER_GROUP_MAP.get(user_id, "").upper()
 
-    # Skip prompting Visitors for Predawn, Wednesday, Friday
-    if group == "Visitors" and label in ["Predawn", "Wednesday", "Friday"]:
+    # Skip prompting VISITORS for Predawn, Wednesday, Friday
+    if group == "VISITORS" and label in ["Predawn", "Wednesday", "Friday"]:
         print(f"[SKIP] Skipping Visitors group for {label}")
         return
 
     members = MEMBER_LISTS[group][:]
 
-    if group != "Visitors":
+    if group != "VISITORS":
         excluded = EXCLUSIONS.get(label, {}).get(group, [])
         members = [m for m in members if m not in excluded]
 
@@ -135,7 +134,7 @@ async def send_attendance_prompt(user_id, bot: Bot, context, label):
     "selected": [],
     "reasons": {},     # stores the selected reason (predefined or Others)
     "details": {},     # stores the custom text for all reasons
-    "visitors": [],
+    "VISITORS": [],
     "newcomers": []
 }
 
@@ -182,7 +181,7 @@ async def handle_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Handle visitor entry
     elif context.user_data.get("awaiting_visitor"):
         name = update.message.text.strip()
-        session["visitors"].append(f"Visitor - {name}")
+        session["VISITORS"].append(f"Visitor - {name}")
         del context.user_data["awaiting_visitor"]
         await update.message.reply_text(f"✅ Added visitor: {name}")
 
@@ -281,7 +280,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             session["selected"].append(data)
         session["members"].remove(data)
 
-        if session["group"] != "Visitors":
+        if session["group"] != "VISITORS":
             context.user_data["awaiting_reason_name"] = data
             reason_options = [
                 "Family Emergency",
@@ -402,10 +401,10 @@ async def submit_attendance(user_id, context, query):
         {
             "name": v.replace("Visitor - ", ""),
             "reason": "",
-            "department": "Visitors",
+            "department": "VISITORS",
             "extra": session.get("details", {}).get(v, "")
         }
-        for v in session.get("visitors", [])
+        for v in session.get("VISITORS", [])
     ]
 
     # Combine all entries
